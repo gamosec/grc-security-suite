@@ -5,7 +5,9 @@
   "type": "module",
   "description": "On-prem shared modules + test harness for the GRC Suite (auth hardening, D1->PG adapter). Not part of any Cloudflare build.",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test tests/*.test.mjs",
+    "test:integration": "node --test tests/*.itest.mjs",
+    "test:all": "node --test tests/*.test.mjs tests/*.itest.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3"

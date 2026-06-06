@@ -64,6 +64,15 @@ function convertPlaceholders(sql) {
  */
 function translateSqliteFunctions(sql) {
   let s = sql
+  // Normalise double-quoted "now" to the single-quoted form. Some app code
+  // writes datetime("now") — in SQLite double quotes fall back to a string
+  // literal, but in PostgreSQL "now" is a *column identifier*, which throws
+  // `column "now" does not exist`. Rewrite to 'now' so the rules below apply.
+  // Only the literal now() helpers are affected; other quoted identifiers are
+  // left untouched.
+  s = s.replace(/\b(date|datetime)\(\s*"now"\s*(,\s*'[^']*'\s*)?\)/gi,
+    (_, fn, modifier) => `${fn}('now'${modifier ? ', ' + modifier.replace(/^,\s*/, '') : ''})`)
+
   // datetime('now') / date('now') with optional modifier -> native PG values.
   // Native types are required so assignments into TIMESTAMPTZ columns and date
   // arithmetic keep working (a text result would not auto-cast on INSERT).

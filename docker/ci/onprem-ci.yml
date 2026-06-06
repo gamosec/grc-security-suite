@@ -7,6 +7,10 @@
 #      reproduce the production strings, and an env-driven build must replace
 #      them (and leave no production secret behind).
 #
+#   3. Runs the integration tests (risk CRUD, GRC<->Pentest sync, compliance
+#      scoring) against a real PostgreSQL + the two Node apps, with strong
+#      env-driven secrets — the same flow as docker/scripts/run-local.sh.
+#
 # This intentionally does NOT run the Cloudflare/vite build — those workflows
 # are owned elsewhere and the on-prem changes are additive (new files only).
 name: onprem-ci
@@ -91,3 +95,90 @@ jobs:
           ! grep -q 'grcpulse-sync-2024' dist-server/app.mjs
           ! grep -q 'grc-pulse.pages.dev' dist-server/app.mjs
           echo "OK: pentest env-driven build rewrote sync key + URL"
+
+  integration-tests:
+    name: Integration (risk CRUD, sync, compliance scoring)
+    runs-on: ubuntu-latest
+    # Strong secrets shared by the build step, both servers and the tests.
+    env:
+      JWT_SECRET: ci-strong-jwt-secret-abc123xyz
+      SYNC_KEY: ci-strong-sync-key-def456uvw
+      DATABASE_URL: postgres://grc:grc@127.0.0.1:5432/grc_suite
+      GRC_BASE_URL: http://localhost:3002
+      PENTEST_BASE_URL: http://localhost:3003
+      AI_PROVIDER: none
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: grc
+          POSTGRES_PASSWORD: grc
+          POSTGRES_DB: grc_suite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grc -d grc_suite"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Initialize database (same scripts the Docker image uses)
+        run: |
+          export PGPASSWORD=grc
+          for f in docker/db/init/*.sql; do
+            echo "applying $f"
+            psql -h 127.0.0.1 -U grc -d grc_suite -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Install server deps
+        run: |
+          (cd grc-pulse/server && npm install --no-audit --no-fund)
+          (cd pentest-pulse/server && npm install --no-audit --no-fund)
+
+      - name: Copy shared modules (as the runtime image does)
+        run: |
+          mkdir -p grc-pulse/server/shared pentest-pulse/server/shared
+          cp docker/shared/*.mjs grc-pulse/server/shared/
+          cp docker/shared/*.mjs pentest-pulse/server/shared/
+
+      - name: Build app bundles with strong secrets + localhost peer URLs
+        run: |
+          (cd grc-pulse/server && PENTEST_PULSE_URL=http://localhost:3003 node build.mjs)
+          (cd pentest-pulse/server && GRC_PULSE_URL=http://localhost:3002 node build.mjs)
+
+      - name: Start GRC Pulse (:3002) and Pentest Pulse (:3003)
+        run: |
+          mkdir -p /tmp/logs /tmp/evidence
+          (cd grc-pulse/server && DB_SCHEMA=grc_pulse PORT=3002 \
+             nohup node server.mjs >/tmp/logs/grc.log 2>&1 &)
+          (cd pentest-pulse/server && DB_SCHEMA=pentest_pulse PORT=3003 EVIDENCE_DIR=/tmp/evidence \
+             nohup node server.mjs >/tmp/logs/pentest.log 2>&1 &)
+
+      - name: Wait for both services to be healthy
+        run: |
+          for url in http://localhost:3002/healthz http://localhost:3003/healthz; do
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || echo 000)
+              if [ "$code" = "200" ] || [ "$code" = "302" ]; then echo "$url OK ($code)"; break; fi
+              if [ "$i" = "30" ]; then echo "TIMEOUT waiting for $url"; cat /tmp/logs/*.log; exit 1; fi
+              sleep 2
+            done
+          done
+
+      - name: Install test deps
+        working-directory: docker
+        run: npm install --no-audit --no-fund
+
+      - name: Run integration tests
+        working-directory: docker
+        run: npm run test:integration
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: cat /tmp/logs/*.log || true

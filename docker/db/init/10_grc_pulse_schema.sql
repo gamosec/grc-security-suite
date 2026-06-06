@@ -1172,3 +1172,7 @@ ALTER TABLE grc_pulse.control_assessments
 ALTER TABLE grc_pulse.control_assessments
   ADD COLUMN IF NOT EXISTS risk_warnings TEXT;
 
+-- ===== on-prem compatibility: audit_findings.affected_controls =====
+ALTER TABLE grc_pulse.audit_findings
+  ADD COLUMN IF NOT EXISTS affected_controls TEXT;
+

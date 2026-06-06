@@ -495,6 +495,16 @@ def main():
         "ALTER TABLE grc_pulse.control_assessments\n"
         "  ADD COLUMN IF NOT EXISTS risk_warnings TEXT;\n"
     )
+    # Compatibility: audit_findings.affected_controls is a JSON-string column the
+    # app writes when creating findings (src/index.tsx) and reads during the
+    # risk<->finding compliance sync on PATCH /api/risks/:id. Production added it
+    # at runtime; it is absent from any committed migration, so updating a risk
+    # 500s without it. Add idempotently.
+    grc_ddl += (
+        "\n-- ===== on-prem compatibility: audit_findings.affected_controls =====\n"
+        "ALTER TABLE grc_pulse.audit_findings\n"
+        "  ADD COLUMN IF NOT EXISTS affected_controls TEXT;\n"
+    )
     write_schema("10_grc_pulse_schema.sql", "grc_pulse", grc_ddl)
     # Seed data correction: the committed seed.sql ships a demo risk
     # ("Missing MFA on Admin Accounts") tagged risk_source='penetration_test'
