@@ -1,0 +1,299 @@
+/**
+ * d1-pg-adapter.mjs
+ * =================
+ * A drop-in, D1-compatible database adapter backed by PostgreSQL.
+ *
+ * The GRC Pulse and Pentest Pulse codebases were written for Cloudflare D1 and
+ * use the D1 prepared-statement API:
+ *
+ *     const row  = await env.DB.prepare('SELECT * FROM t WHERE id = ?').bind(id).first()
+ *     const list = await env.DB.prepare('SELECT * FROM t').all()           // -> { results: [...] }
+ *     const res  = await env.DB.prepare('INSERT ...').bind(...).run()       // -> { success, meta }
+ *     await env.DB.batch([stmt1, stmt2])
+ *
+ * This adapter exposes the *same* surface on top of `pg`, so the application
+ * code does not have to change. It also rewrites the small set of SQLite-isms
+ * that appear inside runtime queries (positional `?` placeholders and
+ * `datetime('now')` style helpers) into their PostgreSQL equivalents.
+ *
+ * A `search_path` is set on every pooled connection so each app transparently
+ * resolves its own schema (grc_pulse / pentest_pulse / autoaudit) without any
+ * table-name changes in the application code.
+ */
+
+import pg from 'pg'
+
+const { Pool } = pg
+
+// --------------------------------------------------------------------------- //
+// Query translation: SQLite (D1) -> PostgreSQL
+// --------------------------------------------------------------------------- //
+
+/**
+ * Convert `?` positional placeholders to `$1, $2, ...`.
+ * Skips `?` characters inside single-quoted string literals.
+ */
+function convertPlaceholders(sql) {
+  let out = ''
+  let idx = 0
+  let inSingle = false
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i]
+    if (ch === "'") {
+      // handle escaped '' inside string literals
+      if (inSingle && sql[i + 1] === "'") {
+        out += "''"
+        i++
+        continue
+      }
+      inSingle = !inSingle
+      out += ch
+    } else if (ch === '?' && !inSingle) {
+      idx++
+      out += '$' + idx
+    } else {
+      out += ch
+    }
+  }
+  return out
+}
+
+/**
+ * Translate the handful of SQLite date/time helpers that appear in runtime
+ * queries into PostgreSQL equivalents.
+ */
+function translateSqliteFunctions(sql) {
+  let s = sql
+  // datetime('now') / date('now') with optional modifier
+  s = s.replace(
+    /\b(date|datetime)\(\s*'now'\s*,\s*'([^']*)'\s*\)/gi,
+    (_, fn, modifier) => {
+      const base = fn.toLowerCase() === 'date' ? 'current_date' : 'now()'
+      const m = /^([+-]?)\s*(\d+)\s+(\w+)$/.exec(modifier.trim())
+      if (!m) return base
+      const sign = m[1] === '-' ? '-' : '+'
+      return `(${base} ${sign} interval '${m[2]} ${m[3]}')`
+    },
+  )
+  s = s.replace(/\bdatetime\(\s*'now'\s*\)/gi, 'now()')
+  s = s.replace(/\bdate\(\s*'now'\s*\)/gi, 'current_date')
+  // SQLite string concat already uses || which PG supports.
+  // COALESCE / json functions are compatible.
+  s = rewriteAliasInHaving(s)
+  return s
+}
+
+/**
+ * SQLite allows a SELECT-list alias to be referenced inside HAVING
+ * (e.g. `SELECT COUNT(x) AS control_count ... HAVING control_count > 0`).
+ * PostgreSQL forbids aliases in HAVING — it only accepts them in ORDER BY.
+ * This rewrites `HAVING <alias> <op> ...` by substituting the underlying
+ * aggregate expression that the alias was defined from, so the query becomes
+ * valid PostgreSQL without touching the (read-only) application source.
+ *
+ * Only aggregate-function aliases are substituted; non-aggregate aliases are
+ * left untouched (those are valid grouping columns and would not appear in a
+ * HAVING comparison in this codebase).
+ */
+function rewriteAliasInHaving(sql) {
+  if (!/\bHAVING\b/i.test(sql)) return sql
+
+  // Collect `<aggregate-expr> AS <alias>` pairs from the SELECT list.
+  // Matches e.g. COUNT(crm.id) as control_count, SUM(x) AS total, ...
+  const aliasMap = new Map()
+  const aliasRe =
+    /\b((?:COUNT|SUM|AVG|MIN|MAX|TOTAL)\s*\([^()]*\))\s+as\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi
+  let m
+  while ((m = aliasRe.exec(sql)) !== null) {
+    aliasMap.set(m[2].toLowerCase(), m[1])
+  }
+  if (aliasMap.size === 0) return sql
+
+  // Replace alias references that appear in the HAVING clause only.
+  return sql.replace(/\bHAVING\b([\s\S]*?)(?=\bORDER\b|\bLIMIT\b|\bGROUP\b|$)/i, (full, body) => {
+    let newBody = body
+    for (const [alias, expr] of aliasMap) {
+      const ref = new RegExp(`\\b${alias}\\b`, 'gi')
+      newBody = newBody.replace(ref, expr)
+    }
+    return 'HAVING' + newBody
+  })
+}
+
+function translateQuery(sql) {
+  return convertPlaceholders(translateSqliteFunctions(sql))
+}
+
+// --------------------------------------------------------------------------- //
+// D1-compatible statement / database wrappers
+// --------------------------------------------------------------------------- //
+
+class PgPreparedStatement {
+  constructor(pool, sql) {
+    this.pool = pool
+    this.sql = sql
+    this.params = []
+  }
+
+  bind(...args) {
+    // D1 allows chained .bind(); we create a fresh bound statement so a single
+    // prepared statement object can be reused (matches D1 semantics closely
+    // enough for this codebase).
+    const stmt = new PgPreparedStatement(this.pool, this.sql)
+    stmt.params = args
+    return stmt
+  }
+
+  async _exec() {
+    const text = translateQuery(this.sql)
+    return this.pool.query({ text, values: this.params })
+  }
+
+  /** D1: .first() -> first row or null; .first(col) -> single column value */
+  async first(column) {
+    const res = await this._exec()
+    const row = res.rows[0]
+    if (!row) return null
+    if (column !== undefined) return row[column]
+    return row
+  }
+
+  /** D1: .all() -> { results, success, meta } */
+  async all() {
+    const res = await this._exec()
+    return {
+      results: res.rows,
+      success: true,
+      meta: {
+        rows_read: res.rowCount ?? res.rows.length,
+        changes: res.rowCount ?? 0,
+      },
+    }
+  }
+
+  /** D1: .run() -> { success, meta } */
+  async run() {
+    const res = await this._exec()
+    return {
+      success: true,
+      results: res.rows,
+      meta: {
+        changes: res.rowCount ?? 0,
+        last_row_id: undefined,
+        rows_written: res.rowCount ?? 0,
+      },
+    }
+  }
+
+  /** D1: .raw() -> array of arrays */
+  async raw() {
+    const res = await this._exec()
+    return res.rows.map((r) => Object.values(r))
+  }
+}
+
+class PgDatabase {
+  constructor(pool) {
+    this.pool = pool
+  }
+
+  prepare(sql) {
+    return new PgPreparedStatement(this.pool, sql)
+  }
+
+  /**
+   * D1 batch: run a list of prepared statements. We run them inside a single
+   * transaction to mirror D1's atomic batch semantics.
+   */
+  async batch(statements) {
+    const client = await this.pool.connect()
+    const results = []
+    try {
+      await client.query('BEGIN')
+      await client.query('SET CONSTRAINTS ALL DEFERRED')
+      for (const stmt of statements) {
+        const text = translateQuery(stmt.sql)
+        const res = await client.query({ text, values: stmt.params })
+        results.push({
+          results: res.rows,
+          success: true,
+          meta: { changes: res.rowCount ?? 0 },
+        })
+      }
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+    return results
+  }
+
+  /** D1 exec: run raw multi-statement SQL (used rarely). */
+  async exec(sql) {
+    const res = await this.pool.query(translateSqliteFunctions(sql))
+    return { count: Array.isArray(res) ? res.length : 1, duration: 0 }
+  }
+}
+
+// --------------------------------------------------------------------------- //
+// Factory
+// --------------------------------------------------------------------------- //
+
+let _pools = new Map()
+
+/**
+ * Create (or reuse) a D1-compatible database object for the given schema.
+ *
+ * @param {object} opts
+ * @param {string} opts.connectionString  PostgreSQL connection string (DATABASE_URL)
+ * @param {string} opts.schema            search_path schema (grc_pulse|pentest_pulse|autoaudit)
+ * @param {number} [opts.max]             max pool connections
+ */
+export function createD1Adapter({ connectionString, schema = 'public', max = 10 }) {
+  const key = `${connectionString}::${schema}`
+  if (_pools.has(key)) {
+    return new PgDatabase(_pools.get(key))
+  }
+
+  const pool = new Pool({
+    connectionString,
+    max,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+  })
+
+  // Ensure every connection resolves the correct schema first.
+  pool.on('connect', (client) => {
+    client.query(`SET search_path TO ${schema}, public`).catch(() => {})
+  })
+
+  pool.on('error', (err) => {
+    // eslint-disable-next-line no-console
+    console.error('[d1-pg-adapter] idle client error:', err.message)
+  })
+
+  _pools.set(key, pool)
+  return new PgDatabase(pool)
+}
+
+/** Wait until the database accepts connections (used at server startup). */
+export async function waitForDatabase(connectionString, { retries = 30, delayMs = 2000 } = {}) {
+  const probe = new Pool({ connectionString, max: 1, connectionTimeoutMillis: 5000 })
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await probe.query('SELECT 1')
+      await probe.end()
+      return true
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log(`[d1-pg-adapter] waiting for database (${attempt}/${retries})...`)
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+  await probe.end().catch(() => {})
+  throw new Error('Database did not become available in time')
+}
+
+export { translateQuery }
