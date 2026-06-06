@@ -1,0 +1,210 @@
+﻿<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="UTF-8">
+  <title>Official Data Classification Policy for Acme Bank</title>
+  <!--[if gte mso 9]><xml><w:WordDocument>
+    <w:View>Print</w:View><w:Zoom>90</w:Zoom>
+  </w:WordDocument></xml><![endif]-->
+  <style>
+    @page { margin: 2.5cm 2.5cm 2cm; }
+    body  { font-family:Arial,sans-serif; font-size:11pt; color:#1e293b; direction:ltr; line-height:1.55; }
+    h1    { font-size:19pt; color:#fff; margin:0 0 6pt; }
+    h2    { font-size:13pt; color:#1B3A6B; margin:18pt 0 7pt; border-bottom:2pt solid #1B3A6B; padding-bottom:4pt; page-break-after:avoid; }
+    h3    { font-size:11.5pt; color:#1B3A6B; margin:12pt 0 4pt; }
+    p     { margin:0 0 8pt; }
+    table { width:100%; border-collapse:collapse; margin:8pt 0 14pt; font-size:10.5pt; }
+    td,th { padding:6pt 10pt; border:1pt solid #d1d5db; vertical-align:top; }
+    th    { background:#1B3A6B; color:#fff; font-weight:bold; text-align:left; }
+    ul    { margin:4pt 0 10pt; }
+    li    { margin-bottom:3pt; line-height:1.6; }
+    .cover{ background:#1B3A6B; color:#fff; padding:26pt 30pt 22pt; }
+    .cover .sub { font-size:10pt; color:#93c5fd; margin-bottom:6pt; }
+    .cover .ref { font-size:9pt; color:#7dd3fc; margin-top:8pt; font-family:monospace; }
+    .meta td    { border:none; padding:3pt 8pt; font-size:10pt; }
+    .meta .lbl  { font-weight:bold; color:#64748b; font-size:9pt; text-transform:uppercase; letter-spacing:.04em; width:33%; }
+    .notice     { background:#fffbeb; border-left:3pt solid #f59e0b; padding:8pt 12pt; margin:8pt 0; font-size:10pt; color:#78350f; }
+    .footer     { font-size:8pt; color:#94a3b8; text-align:center; margin-top:28pt; border-top:1pt solid #e2e8f0; padding-top:8pt; }
+  </style>
+</head>
+<body>
+<div class="cover">
+  <div class="sub">Acme Bank &nbsp;·&nbsp; Data Classification Policy</div>
+  <h1>Official Data Classification Policy for Acme Bank</h1>
+  <div class="ref">POL-DCP-007 &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; Internal — Confidential</div>
+</div>
+
+<h2>1. Document Control</h2>
+<table class="meta">
+  <tr>
+    <td class="lbl">Reference</td><td>POL-DCP-007</td>
+    <td class="lbl">Version</td><td>1.0</td>
+  </tr>
+  <tr>
+    <td class="lbl">Effective</td><td>2026-05-01</td>
+    <td class="lbl">Next Review</td><td>2027-05-01</td>
+  </tr>
+  <tr>
+    <td class="lbl">Owner</td><td>Chief Information Security Officer (CISO)</td>
+    <td class="lbl">Approver</td><td>Chief Executive Officer (CEO)</td>
+  </tr>
+  <tr>
+    <td class="lbl">Classification</td><td>Internal — Confidential</td>
+    <td class="lbl">Framework</td><td>ISO 27001:2022</td>
+  </tr>
+</table>
+
+<h2>2. Purpose</h2>
+<p>The purpose of this policy is to ensure the proper classification, handling, and protection of sensitive information within Acme Bank. The Board of Directors and Chief Executive Officer demonstrate their commitment to information security and align with business objectives by approving this policy. This policy is essential to maintaining the confidentiality, integrity, and availability of sensitive information.</p>
+
+<h2>3. Scope</h2>
+<p>This policy applies to all employees, contractors, and third-party vendors who handle sensitive information within Acme Bank. It covers all systems, data, and information assets, including but not limited to, financial data, customer information, and employee records.</p>
+
+<h2>4. Roles & Responsibilities</h2>
+<table>
+  <tr>
+    <th style="width:32%">Role</th>
+    <th>Responsibility</th>
+  </tr>
+  
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Board of Directors</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Provides strategic oversight and approves security strategy</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Chief Executive Officer (CEO)</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Demonstrates leadership commitment by approving this policy and allocating resources</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Chief Information Security Officer (CISO)</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Develops, implements, and maintains this policy; reports to Board</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Information Security Manager</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Coordinates day-to-day implementation and monitors compliance</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Department Managers</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Ensure staff compliance and complete required training</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">IT Department</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Implements technical controls and security configurations</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">Human Resources</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Manages security in employment lifecycle and training</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:32%;background:#f8fafc;vertical-align:top;">All Employees</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Comply with this policy and report incidents immediately</td>
+    </tr>
+</table>
+
+<h2>5. Policy Statements</h2>
+<div class="notice">
+  All statements are mandatory. SHALL and MUST indicate required actions; MUST NOT indicates prohibited actions.
+</div>
+
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.1 Classification Levels
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">All sensitive information shall be classified as Public, Internal, Confidential, or Restricted based on its sensitivity and potential impact on the organization.</li><li style="margin-bottom:4pt;line-height:1.65;">The classification of sensitive information shall be reviewed and updated at least annually, or as needed.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information classified as Confidential or Restricted shall be handled and stored in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information classified as Public shall be made available to the public through the organization's website or other approved channels.</li>
+    </ul>
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.2 Classification Process
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">The classification of sensitive information shall be performed by the Data Owner or their designated representative.</li><li style="margin-bottom:4pt;line-height:1.65;">The classification process shall include a review of the information's sensitivity, potential impact on the organization, and any relevant laws or regulations.</li><li style="margin-bottom:4pt;line-height:1.65;">The classification of sensitive information shall be documented and stored in a secure and accessible location.</li><li style="margin-bottom:4pt;line-height:1.65;">The classification of sensitive information shall be reviewed and updated at least annually, or as needed.</li>
+    </ul>
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.3 Labeling Requirements
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">Sensitive information classified as Confidential or Restricted shall be labeled with a clear and visible warning indicating its sensitivity and potential impact on the organization.</li><li style="margin-bottom:4pt;line-height:1.65;">The label shall include the classification level, the name of the Data Owner, and any other relevant information.</li><li style="margin-bottom:4pt;line-height:1.65;">The label shall be applied to all copies of the sensitive information, including but not limited to, electronic and physical copies.</li><li style="margin-bottom:4pt;line-height:1.65;">The label shall be reviewed and updated at least annually, or as needed.</li>
+    </ul>
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.4 Handling Requirements
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">Sensitive information classified as Confidential or Restricted shall be handled and stored in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information classified as Public shall be made available to the public through the organization's website or other approved channels.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be transmitted and received in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be disposed of in accordance with the organization's security policies and procedures.</li>
+    </ul>
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.5 Information Transfer
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be transferred in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be transmitted and received in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be stored in a secure and accessible location.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be reviewed and updated at least annually, or as needed.</li>
+    </ul>
+    <h3 style="color:#1B3A6B;font-size:12pt;margin:14pt 0 5pt;padding-bottom:3pt;border-bottom:1px solid #e2e8f0;">
+      5.6 Declassification and Reclassification
+    </h3>
+    <ul style="margin:0 0 10pt;padding-left:18pt;">
+      <li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be declassified in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">Sensitive information shall be reclassified in accordance with the organization's security policies and procedures.</li><li style="margin-bottom:4pt;line-height:1.65;">The declassification and reclassification of sensitive information shall be documented and stored in a secure and accessible location.</li><li style="margin-bottom:4pt;line-height:1.65;">The declassification and reclassification of sensitive information shall be reviewed and updated at least annually, or as needed.</li>
+    </ul>
+
+<h2>Framework Alignment</h2>
+<p><strong>ISO 27001:2022:</strong> This policy addresses ISO 27001:2022 controls: A.5.12 Classification of information, A.5.13 Labelling of information, A.5.14 Information transfer. Each control has been incorporated into the policy statements.</p>
+
+<h2>Exceptions</h2>
+<p>Exceptions MUST be requested in writing, approved by the CISO, documented in the exception register, and reviewed annually. All exceptions expire after 12 months unless renewed.</p>
+
+<h2>Enforcement</h2>
+<p>Violations may result in disciplinary action up to termination. Third parties in violation may have access revoked and contracts terminated.</p>
+
+<h2>Definitions</h2>
+<table>
+  <tr>
+    <th style="width:28%">Term</th>
+    <th>Definition</th>
+  </tr>
+  
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:28%;background:#f8fafc;vertical-align:top;">Public</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Information approved for public release with no restrictions on distribution.</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:28%;background:#f8fafc;vertical-align:top;">Internal</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Information intended for use within the organization but not publicly available.</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:28%;background:#f8fafc;vertical-align:top;">Confidential</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Sensitive information that could cause harm if disclosed to unauthorized parties.</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:28%;background:#f8fafc;vertical-align:top;">Restricted</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">Highly sensitive information requiring the strictest protection and limited access.</td>
+    </tr>
+    <tr>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;font-weight:bold;width:28%;background:#f8fafc;vertical-align:top;">Data Owner</td>
+      <td style="padding:6pt 10pt;border:1pt solid #d1d5db;vertical-align:top;">The individual or role accountable for the classification and protection of specific data assets.</td>
+    </tr>
+</table>
+
+<h2>Related Documents</h2>
+<ul><li style="margin-bottom:4pt;">Acme Bank ISMS Manual</li><li style="margin-bottom:4pt;">Acme Bank Risk Assessment Procedure</li><li style="margin-bottom:4pt;">Acme Bank Incident Response Procedure</li><li style="margin-bottom:4pt;">Acme Bank Security Awareness Training Program</li></ul>
+
+<h2>Revision History</h2>
+<table>
+  <tr>
+    <th style="width:12%">Version</th>
+    <th style="width:20%">Date</th>
+    <th style="width:28%">Author</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>1.0</td>
+    <td>2026-05-01</td>
+    <td>AutoAudit AI</td>
+    <td>Initial release</td>
+  </tr>
+</table>
+
+<div class="footer">
+  Acme Bank &nbsp;·&nbsp; POL-DCP-007 &nbsp;·&nbsp;
+  Internal Confidential — Do not distribute without authorisation
+   &nbsp;·&nbsp; 1 May 2026
+</div>
+</body></html>

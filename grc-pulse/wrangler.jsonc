@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "grc-pulse",
+  "compatibility_date": "2025-12-24",
+  "pages_build_output_dir": "./dist",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "grc-pulse-db",
+      "database_id": "03a784d7-1d5e-49e6-94a0-1fff6b9a3b3d"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}

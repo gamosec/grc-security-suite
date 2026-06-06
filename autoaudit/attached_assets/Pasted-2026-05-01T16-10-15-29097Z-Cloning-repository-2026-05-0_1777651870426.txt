@@ -1,0 +1,60 @@
+2026-05-01T16:10:15.29097Z	Cloning repository...
+2026-05-01T16:10:16.715382Z	From https://github.com/gamosec/autoaudit
+2026-05-01T16:10:16.716604Z	 * branch            d9476602f37d11adb70e543581c624003a2c7c76 -> FETCH_HEAD
+2026-05-01T16:10:16.716797Z	
+2026-05-01T16:10:16.753003Z	HEAD is now at d947660 Remove development server settings from production configuration
+2026-05-01T16:10:16.754658Z	
+2026-05-01T16:10:16.876782Z	
+2026-05-01T16:10:16.877308Z	Using v2 root directory strategy
+2026-05-01T16:10:16.910742Z	Success: Finished cloning repository files
+2026-05-01T16:10:19.788536Z	Checking for configuration in a Wrangler configuration file (BETA)
+2026-05-01T16:10:19.790063Z	
+2026-05-01T16:10:20.933768Z	No Wrangler configuration file found. Continuing.
+2026-05-01T16:10:21.351098Z	Detected the following tools from environment: npm@10.9.2, nodejs@22.16.0
+2026-05-01T16:10:21.353395Z	Installing project dependencies: npm install --progress=false
+2026-05-01T16:10:34.232641Z	
+2026-05-01T16:10:34.23301Z	added 65 packages, and audited 66 packages in 12s
+2026-05-01T16:10:34.233208Z	
+2026-05-01T16:10:34.233298Z	9 packages are looking for funding
+2026-05-01T16:10:34.233379Z	  run `npm fund` for details
+2026-05-01T16:10:34.233656Z	
+2026-05-01T16:10:34.233875Z	found 0 vulnerabilities
+2026-05-01T16:10:34.30807Z	Executing user command: npm install && npm run build
+2026-05-01T16:10:35.44796Z	
+2026-05-01T16:10:35.448599Z	added 1 package, and audited 67 packages in 774ms
+2026-05-01T16:10:35.44924Z	
+2026-05-01T16:10:35.450156Z	9 packages are looking for funding
+2026-05-01T16:10:35.450341Z	  run `npm fund` for details
+2026-05-01T16:10:35.450427Z	
+2026-05-01T16:10:35.451161Z	found 0 vulnerabilities
+2026-05-01T16:10:35.958229Z	
+2026-05-01T16:10:35.958677Z	> autoaudit@1.0.0 build
+2026-05-01T16:10:35.95878Z	> vite build
+2026-05-01T16:10:35.958845Z	
+2026-05-01T16:10:36.435Z	[36mvite v6.4.2 [32mbuilding for production...[36m[39m
+2026-05-01T16:10:36.552655Z	transforming...
+2026-05-01T16:10:36.915976Z	
+2026-05-01T16:10:36.917958Z	new URL(
+2026-05-01T16:10:36.91816Z	        "pdfjs-dist/build/pdf.worker.min.mjs",
+2026-05-01T16:10:36.918295Z	        import.meta.url
+2026-05-01T16:10:36.91839Z	      ) doesn't exist at build time, it will remain unchanged to be resolved at runtime. If this is intended, you can use the /* @vite-ignore */ comment to suppress this warning.
+2026-05-01T16:10:36.944452Z	[32m✓[39m 21 modules transformed.
+2026-05-01T16:10:36.950157Z	[31m✗[39m Build failed in 472ms
+2026-05-01T16:10:36.950509Z	[31merror during build:
+2026-05-01T16:10:36.950645Z	[31m[vite]: Rollup failed to resolve import "pdfjs-dist" from "/opt/buildhome/repo/autoaudit/src/modules/GapModule.jsx".
+2026-05-01T16:10:36.950718Z	This is most likely unintended because it can break your application at runtime.
+2026-05-01T16:10:36.950776Z	If you do want to externalize this module explicitly add it to
+2026-05-01T16:10:36.950826Z	`build.rollupOptions.external`[31m
+2026-05-01T16:10:36.951721Z	    at viteLog (file:///opt/buildhome/repo/autoaudit/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:46399:15)
+2026-05-01T16:10:36.952382Z	    at file:///opt/buildhome/repo/autoaudit/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:46457:18
+2026-05-01T16:10:36.952604Z	    at onwarn (/opt/buildhome/repo/autoaudit/node_modules/@vitejs/plugin-react/dist/index.cjs:112:7)
+2026-05-01T16:10:36.95268Z	    at file:///opt/buildhome/repo/autoaudit/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:46455:7
+2026-05-01T16:10:36.952721Z	    at onRollupLog (file:///opt/buildhome/repo/autoaudit/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:46447:5)
+2026-05-01T16:10:36.952764Z	    at onLog (file:///opt/buildhome/repo/autoaudit/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:46097:7)
+2026-05-01T16:10:36.952818Z	    at file:///opt/buildhome/repo/autoaudit/node_modules/rollup/dist/es/shared/node-entry.js:21383:32
+2026-05-01T16:10:36.952868Z	    at Object.logger [as onLog] (file:///opt/buildhome/repo/autoaudit/node_modules/rollup/dist/es/shared/node-entry.js:23378:9)
+2026-05-01T16:10:36.952922Z	    at ModuleLoader.handleInvalidResolvedId (file:///opt/buildhome/repo/autoaudit/node_modules/rollup/dist/es/shared/node-entry.js:22122:26)
+2026-05-01T16:10:36.952968Z	    at ModuleLoader.resolveDynamicImport (file:///opt/buildhome/repo/autoaudit/node_modules/rollup/dist/es/shared/node-entry.js:22180:58)[39m
+2026-05-01T16:10:36.993044Z	Failed: Error while executing user command. Exited with error code: 1
+2026-05-01T16:10:37.018041Z	Failed: build command exited with code: 1
+2026-05-01T16:10:38.272421Z	Failed: error occurred while running build command
