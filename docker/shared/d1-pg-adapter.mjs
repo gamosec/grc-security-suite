@@ -64,7 +64,9 @@ function convertPlaceholders(sql) {
  */
 function translateSqliteFunctions(sql) {
   let s = sql
-  // datetime('now') / date('now') with optional modifier
+  // datetime('now') / date('now') with optional modifier -> native PG values.
+  // Native types are required so assignments into TIMESTAMPTZ columns and date
+  // arithmetic keep working (a text result would not auto-cast on INSERT).
   s = s.replace(
     /\b(date|datetime)\(\s*'now'\s*,\s*'([^']*)'\s*\)/gi,
     (_, fn, modifier) => {
@@ -77,9 +79,52 @@ function translateSqliteFunctions(sql) {
   )
   s = s.replace(/\bdatetime\(\s*'now'\s*\)/gi, 'now()')
   s = s.replace(/\bdate\(\s*'now'\s*\)/gi, 'current_date')
+
+  // Mixed-type date comparisons: several migrated date columns are TEXT (ISO
+  // strings) while the helpers above are native date/timestamptz. PostgreSQL
+  // refuses `text <op> date`. When a bare column is compared against a native
+  // "now" expression, cast the COLUMN to the matching type so the comparison
+  // succeeds for TEXT columns and is a no-op for already-date/timestamptz ones.
+  s = castDateComparisons(s)
+
   // SQLite string concat already uses || which PG supports.
   // COALESCE / json functions are compatible.
   s = rewriteAliasInHaving(s)
+  return s
+}
+
+/**
+ * Make `<column> <op> <now-expr>` comparisons type-safe.
+ *
+ * Rewrites e.g. `due_date < current_date` -> `due_date::date < current_date`
+ * and `last_seen >= now()` -> `last_seen::timestamptz >= now()`. A TEXT column
+ * holding ISO-8601 values casts cleanly; an already-typed column casting to its
+ * own type is a no-op. Reversed operand order is handled too. Qualified columns
+ * (alias.col) are supported.
+ *
+ * Only the ORDERING operators (< > <= >=) are rewritten: those appear only in
+ * comparisons, never in `SET col = ...` assignments, so UPDATE/INSERT targets
+ * are never corrupted. The right-hand "now" expression may be a bare
+ * `current_date` / `now()` or an interval-wrapped form produced above, e.g.
+ * `(current_date + interval '7 days')`.
+ */
+function castDateComparisons(s) {
+  const col = '([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)'
+  const op = '(<=|>=|<|>)'
+  // The now-expression: bare value or `( <value> ... interval ... )`
+  const nowExpr = '(current_date|now\\(\\)|\\((?:current_date|now\\(\\))[^()]*\\))'
+  const typeOf = (expr) => (/current_date/i.test(expr) ? 'date' : 'timestamptz')
+
+  // column OP now-expr
+  s = s.replace(
+    new RegExp(`\\b${col}\\s*${op}\\s*${nowExpr}`, 'gi'),
+    (_m, c, o, rhs) => `${c}::${typeOf(rhs)} ${o} ${rhs}`,
+  )
+  // now-expr OP column
+  s = s.replace(
+    new RegExp(`${nowExpr}\\s*${op}\\s*${col}`, 'gi'),
+    (_m, lhs, o, c) => `${lhs} ${o} ${c}::${typeOf(lhs)}`,
+  )
   return s
 }
 

@@ -496,9 +496,24 @@ def main():
         "  ADD COLUMN IF NOT EXISTS risk_warnings TEXT;\n"
     )
     write_schema("10_grc_pulse_schema.sql", "grc_pulse", grc_ddl)
-    # Seed base data first, then migration-embedded demo data
+    # Seed data correction: the committed seed.sql ships a demo risk
+    # ("Missing MFA on Admin Accounts") tagged risk_source='penetration_test'
+    # but it has no Pentest Pulse origin (external_reference IS NULL). That made
+    # the GRC "Pentest" count (9) disagree with the real synced findings (8).
+    # Re-tag any such demo rows to 'manual' so they no longer appear under the
+    # Pentest source while remaining valid risks. Real synced risks always carry
+    # external_reference LIKE 'pentest:%', so this can never touch them.
+    grc_seed_fixup = (
+        "\n-- ===== on-prem seed correction: untie demo risks from Pentest source =====\n"
+        "UPDATE grc_pulse.risk_items\n"
+        "   SET risk_source = 'manual'\n"
+        " WHERE risk_source = 'penetration_test'\n"
+        "   AND (external_reference IS NULL OR external_reference NOT LIKE 'pentest:%');\n"
+    )
+    # Seed base data first, then migration-embedded demo data, then the fixup
     write_data("40_grc_pulse_data.sql", "grc_pulse",
-               "\n-- seed.sql\n" + grc_seed_dml + "\n-- migration demo data\n" + grc_dml)
+               "\n-- seed.sql\n" + grc_seed_dml + "\n-- migration demo data\n" + grc_dml
+               + grc_seed_fixup)
 
     print("Converting Pentest Pulse migrations + seed...")
     pentest_tables = extract_table_names(pentest_migrations)

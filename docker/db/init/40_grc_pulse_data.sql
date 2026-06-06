@@ -1079,4 +1079,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO grc_pulse.control_risk_mappings   (id, organization_id, control_id, risk_id, mapping_type, effectiveness, confidence_score, is_auto_suggested) VALUES
 ('crm-007', 'org-001', 'iso-8.8', 'risk-005', 'mitigates', 'full', 95, 1)
 ON CONFLICT DO NOTHING;
+-- ===== on-prem seed correction: untie demo risks from Pentest source =====
+UPDATE grc_pulse.risk_items
+   SET risk_source = 'manual'
+ WHERE risk_source = 'penetration_test'
+   AND (external_reference IS NULL OR external_reference NOT LIKE 'pentest:%');
+
 COMMIT;
