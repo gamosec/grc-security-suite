@@ -1,0 +1,13 @@
+{
+  "name": "grc-suite-onprem-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "On-prem shared modules + test harness for the GRC Suite (auth hardening, D1->PG adapter). Not part of any Cloudflare build.",
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  }
+}

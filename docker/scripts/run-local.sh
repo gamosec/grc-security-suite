@@ -25,6 +25,15 @@ AI_PROVIDER="${AI_PROVIDER:-none}"
 LOG_DIR="${LOG_DIR:-/tmp/grc-suite-logs}"
 mkdir -p "$LOG_DIR"
 
+# --- Auth hardening (local) --------------------------------------------------
+# Strong, env-driven secrets replace the hardcoded production defaults. These
+# are baked into the bundle at build time AND used by the server at runtime, so
+# the hardened login (bcrypt + master-password block) is active locally too.
+# Override by exporting JWT_SECRET / SYNC_KEY before running.
+JWT_SECRET="${JWT_SECRET:-local-dev-jwt-$(hostname)-change-me}"
+SYNC_KEY="${SYNC_KEY:-local-dev-sync-$(hostname)-change-me}"
+export JWT_SECRET SYNC_KEY
+
 # app:port:schema
 APPS=(
   "grc-pulse:3002:grc_pulse"
@@ -50,12 +59,16 @@ ensure_built() {
       (cd "$ROOT/$app" && npm install --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1)
     fi
   else
-    # Hono apps — bundle src/index.tsx, wiring the peer sync URL to localhost.
+    # Hono apps — bundle src/index.tsx, wiring the peer sync URL to localhost
+    # and baking the strong JWT_SECRET / SYNC_KEY into the bundle so the app's
+    # verifier matches the server's session signer.
     echo "[$app] bundling app..."
     if [ "$app" = "grc-pulse" ]; then
-      (cd "$srv" && PENTEST_PULSE_URL="http://localhost:3003" node build.mjs >/dev/null 2>&1)
+      (cd "$srv" && PENTEST_PULSE_URL="http://localhost:3003" \
+          JWT_SECRET="$JWT_SECRET" SYNC_KEY="$SYNC_KEY" node build.mjs >/dev/null 2>&1)
     else
-      (cd "$srv" && GRC_PULSE_URL="http://localhost:3002" node build.mjs >/dev/null 2>&1)
+      (cd "$srv" && GRC_PULSE_URL="http://localhost:3002" \
+          JWT_SECRET="$JWT_SECRET" SYNC_KEY="$SYNC_KEY" node build.mjs >/dev/null 2>&1)
     fi
   fi
 }
@@ -66,10 +79,11 @@ start() {
     ensure_built "$app"
     local srv="$ROOT/$app/server"
     local extra=""
-    [ "$app" = "pentest-pulse" ] && extra="EVIDENCE_DIR=/tmp/evidence JWT_SECRET=local-dev-secret"
+    [ "$app" = "pentest-pulse" ] && extra="EVIDENCE_DIR=/tmp/evidence"
     echo "[$app] starting on :$port (schema=$schema)"
     ( cd "$srv" && env DATABASE_URL="$DATABASE_URL" DB_SCHEMA="$schema" PORT="$port" \
-        AI_PROVIDER="$AI_PROVIDER" $extra nohup node server.mjs >"$LOG_DIR/$app.log" 2>&1 & )
+        AI_PROVIDER="$AI_PROVIDER" JWT_SECRET="$JWT_SECRET" SYNC_KEY="$SYNC_KEY" \
+        $extra nohup node server.mjs >"$LOG_DIR/$app.log" 2>&1 & )
   done
   sleep 4
   status

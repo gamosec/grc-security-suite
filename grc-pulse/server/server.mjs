@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 
 import { createD1Adapter, waitForDatabase } from './shared/d1-pg-adapter.mjs'
 import { createAIAdapter } from './shared/ai-adapter.mjs'
+import { createSecureLogin, validateSecrets } from './shared/auth-hardening.mjs'
 
 // The application is bundled by esbuild to ./dist-server/app.mjs
 import app from './dist-server/app.mjs'
@@ -31,8 +32,17 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgres://grc:grc@postgres:5432/grc_suite'
 
+// JWT signing secret for the hardened login. MUST equal the secret the bundled
+// app verifies with — build.mjs rewrites the app's hardcoded secret from this
+// same env var (with the production string as the default), so they always
+// match whether or not JWT_SECRET is set.
+const JWT_SECRET = process.env.JWT_SECRET || 'grc-pulse-jwt-v5-2026'
+// GRC Pulse legacy SHA-256 salt (matches src/index.tsx: password + 'grc-pulse-salt').
+const APP_SALT = 'grc-pulse-salt'
+
 async function main() {
   console.log('[grc-pulse] waiting for database...')
+  validateSecrets({ serviceName: 'grc-pulse' })
   await waitForDatabase(DATABASE_URL)
 
   const db = createD1Adapter({ connectionString: DATABASE_URL, schema: SCHEMA })
@@ -55,6 +65,38 @@ async function main() {
   if (existsSync(publicDir)) {
     root.use('/static/*', serveStatic({ root: path.relative(process.cwd(), publicDir) || '.' }))
   }
+
+  // Hardened login: fully owns POST /api/auth/login (bcrypt + master-password
+  // block + legacy upgrade-on-login) BEFORE delegating to the app. It issues
+  // the exact JWT-in-cookie the app's verifyJWT expects, so every downstream
+  // route keeps working unchanged. Registered before root.route so it wins.
+  root.use(
+    createSecureLogin({
+      serviceName: 'grc-pulse',
+      appSalt: APP_SALT,
+      jwtSecret: JWT_SECRET,
+      usersTable: 'users_new',
+      orgTable: 'organizations',
+      cookieName: 'session',
+      ttlSeconds: 24 * 60 * 60,
+      // GRC's verifyJWT compares payload.exp (milliseconds) against Date.now().
+      buildPayload: (user) => ({
+        userId: user.id,
+        email: user.email,
+        name: user.display_name || user.email,
+        orgId: user.organization_id,
+        role: user.role || 'viewer',
+        exp: Date.now() + 24 * 60 * 60 * 1000,
+      }),
+      buildUserResponse: (user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.display_name,
+        role: user.role,
+        organization: user.org_name,
+      }),
+    }),
+  )
 
   // Delegate everything else to the original Hono app.
   root.route('/', app)

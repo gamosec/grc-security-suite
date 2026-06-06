@@ -74,6 +74,11 @@ services:
       args:
         # Cross-system sync target (Pentest Pulse) on the internal Docker network.
         PENTEST_PULSE_URL: ${PENTEST_PULSE_URL:-http://pentest-pulse:3000}
+        # Auth hardening: baked into the bundle at build time so the app's JWT
+        # verifier and sync-key check match the server's hardened login. MUST be
+        # identical to the runtime values below (and to Pentest Pulse's SYNC_KEY).
+        JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+        SYNC_KEY: ${SYNC_KEY:-change-me-in-production}
     container_name: grc-pulse
     restart: unless-stopped
     environment:
@@ -85,6 +90,12 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Hardened login signs sessions with this secret (must equal build arg).
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SYNC_KEY: ${SYNC_KEY:-change-me-in-production}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      # Set to 'true' ONLY for emergency recovery — re-enables CisoHub@2026.
+      ALLOW_MASTER_PASSWORD: ${ALLOW_MASTER_PASSWORD:-false}
     ports:
       - "3002:3000"
     depends_on:
@@ -98,6 +109,9 @@ services:
       args:
         # Cross-system sync target (GRC Pulse) on the internal Docker network.
         GRC_PULSE_URL: ${GRC_PULSE_URL:-http://grc-pulse:3000}
+        # Auth hardening: the inbound sync-key check is baked in at build time.
+        # MUST equal GRC Pulse's SYNC_KEY so cross-system sync authenticates.
+        SYNC_KEY: ${SYNC_KEY:-change-me-in-production}
     container_name: grc-pentest-pulse
     restart: unless-stopped
     environment:
@@ -108,7 +122,12 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       EVIDENCE_DIR: /data/evidence
+      # Pentest Pulse reads its JWT secret from env natively; the hardened login
+      # signs with the same value. SYNC_KEY must match GRC Pulse's.
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SYNC_KEY: ${SYNC_KEY:-change-me-in-production}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      ALLOW_MASTER_PASSWORD: ${ALLOW_MASTER_PASSWORD:-false}
     ports:
       - "3003:3000"
     volumes:

@@ -1085,4 +1085,10 @@ UPDATE grc_pulse.risk_items
  WHERE risk_source = 'penetration_test'
    AND (external_reference IS NULL OR external_reference NOT LIKE 'pentest:%');
 
+-- ===== on-prem seed correction: bcrypt password for demo users =====
+-- Default demo password: GrcDemo!2026 (bcrypt, change after first login)
+UPDATE grc_pulse.users
+   SET password_hash = '$2a$12$wQPJJbPAic83PNUbeCRmwOkOIXMHR.7/tkey.3LsJwoG6lSm/Da82'
+ WHERE password_hash IS NULL OR password_hash = '';
+
 COMMIT;

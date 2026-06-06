@@ -30,12 +30,36 @@ const cloudflareShim = {
 // modified, so the Cloudflare build keeps the production URL). The replacement
 // is driven by PENTEST_PULSE_URL with the production value as the default.
 const PENTEST_PULSE_URL = process.env.PENTEST_PULSE_URL || 'https://pentest-pulse.pages.dev'
+
+// On-prem auth hardening: the application source hardcodes the JWT signing
+// secret and the cross-system sync key. The server's hardened login
+// (auth-hardening.mjs) signs sessions with JWT_SECRET, so the app's verifier
+// must use the SAME secret — otherwise every request 401s. Likewise the sync
+// key the server expects must match the key the app sends. We rewrite both
+// hardcoded strings at BUNDLE TIME from env vars, leaving the on-disk source
+// (and therefore the Cloudflare production build) byte-for-byte unchanged.
+// Defaults are the production values so an env-less build reproduces prod.
+const PROD_JWT_SECRET = 'grc-pulse-jwt-v5-2026'
+const PROD_SYNC_KEY = 'grcpulse-sync-2024'
+const JWT_SECRET = process.env.JWT_SECRET || PROD_JWT_SECRET
+const SYNC_KEY = process.env.SYNC_KEY || PROD_SYNC_KEY
+
 const syncUrlRewrite = {
   name: 'sync-url-rewrite',
   setup(build) {
     build.onLoad({ filter: /src[\\/]index\.tsx$/ }, async (args) => {
       let contents = await fs.promises.readFile(args.path, 'utf8')
       contents = contents.split('https://pentest-pulse.pages.dev').join(PENTEST_PULSE_URL)
+      // Rewrite the JWT secret: replace the template-literal expression
+      //   `grc-pulse-jwt-${JWT_VERSION}-2026`
+      // with a plain string literal of the desired secret. This keeps the
+      // app's verifyJWT in lockstep with the server's session signer.
+      contents = contents.replace(
+        /`grc-pulse-jwt-\$\{JWT_VERSION\}-2026`/g,
+        JSON.stringify(JWT_SECRET),
+      )
+      // Rewrite the hardcoded sync key wherever it appears as a string literal.
+      contents = contents.split("'grcpulse-sync-2024'").join(JSON.stringify(SYNC_KEY))
       return { contents, loader: 'tsx' }
     })
   },

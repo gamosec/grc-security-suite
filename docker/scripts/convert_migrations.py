@@ -510,6 +510,24 @@ def main():
         " WHERE risk_source = 'penetration_test'\n"
         "   AND (external_reference IS NULL OR external_reference NOT LIKE 'pentest:%');\n"
     )
+    # Seed correction (auth hardening): the committed GRC seed never set a
+    # password_hash for the demo users — in production they only ever logged in
+    # via the universal master password ('CisoHub@2026'). The on-prem build
+    # BLOCKS that master password, so without a real credential the demo
+    # accounts would be locked out. Give any password-less demo user a bcrypt
+    # hash for the documented default password 'GrcDemo!2026' (rounds=12). This
+    # only touches rows that have no hash, so it can never clobber a real
+    # password set by an operator, and it lets a fresh deploy log in immediately
+    # WITHOUT the master password. Change the password after first login.
+    GRC_DEMO_PASSWORD = "GrcDemo!2026"
+    GRC_DEMO_BCRYPT = "$2a$12$wQPJJbPAic83PNUbeCRmwOkOIXMHR.7/tkey.3LsJwoG6lSm/Da82"
+    grc_seed_fixup += (
+        "\n-- ===== on-prem seed correction: bcrypt password for demo users =====\n"
+        f"-- Default demo password: {GRC_DEMO_PASSWORD} (bcrypt, change after first login)\n"
+        "UPDATE grc_pulse.users\n"
+        f"   SET password_hash = '{GRC_DEMO_BCRYPT}'\n"
+        " WHERE password_hash IS NULL OR password_hash = '';\n"
+    )
     # Seed base data first, then migration-embedded demo data, then the fixup
     write_data("40_grc_pulse_data.sql", "grc_pulse",
                "\n-- seed.sql\n" + grc_seed_dml + "\n-- migration demo data\n" + grc_dml
