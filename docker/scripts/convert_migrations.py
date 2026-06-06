@@ -549,6 +549,18 @@ def main():
     pentest_seed_dml = ""
     if os.path.exists(pentest_seed):
         _, pentest_seed_dml = convert_files([pentest_seed], "pentest_pulse", pentest_tables)
+    # Compatibility: evidence_files.data_url holds a base64 data URI for evidence
+    # screenshots when storage_method == 'database' (the inline-image fallback the
+    # report PDF renders). The app both writes it (POST /api/findings/:id/evidence)
+    # and reads it (SELECT ... data_url in /api/findings-with-evidence, used by the
+    # report preview). Production added it at runtime; it is absent from any
+    # committed migration, so generating a report 500s ("column data_url does not
+    # exist") and evidence uploads fail. Add idempotently.
+    pentest_ddl += (
+        "\n-- ===== on-prem compatibility: evidence_files.data_url =====\n"
+        "ALTER TABLE pentest_pulse.evidence_files\n"
+        "  ADD COLUMN IF NOT EXISTS data_url TEXT;\n"
+    )
     write_schema("20_pentest_pulse_schema.sql", "pentest_pulse", pentest_ddl)
     write_data("50_pentest_pulse_data.sql", "pentest_pulse",
                "\n-- seed.sql\n" + pentest_seed_dml + "\n-- migration demo data\n" + pentest_dml)

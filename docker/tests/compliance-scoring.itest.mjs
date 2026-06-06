@@ -3,16 +3,19 @@
  * scoring (GRC Pulse).
  *
  * Compliance scoring is core GRC business logic, so this asserts it responds
- * correctly and reversibly to control assessments:
+ * correctly and reversibly to control assessments. The assertions are
+ * delta-based against whatever the current baseline is, so the test is robust
+ * on a fresh CI database AND on a long-lived dev database with pre-existing
+ * implemented controls:
  *
- *   1. With no implemented controls the framework score is 0.
- *   2. Implementing N controls raises the `implemented` count by exactly N and
- *      strictly increases the score (monotonic).
- *   3. Reverting those controls to not_started restores the original count and
- *      score (this guards the datetime("now") UPDATE-path bug, where status
+ *   1. Implementing N (currently not_started) controls raises the `implemented`
+ *      count by exactly N and strictly increases the score (monotonic).
+ *   2. Reverting those same controls restores the original count and score
+ *      (this guards the datetime("now") UPDATE-path bug, where status
  *      downgrades used to silently fail on PostgreSQL).
  *
- * The test fully restores any control it touches, so it is safe to re-run.
+ * The test only touches controls it first observed as not_started, and fully
+ * restores them, so it is safe to re-run and never assumes a zero baseline.
  * Runs against a live stack; self-skips if it is not reachable.
  */
 import { test, before, after } from 'node:test'
@@ -63,22 +66,31 @@ async function setStatus(id, status) {
   if (status !== 'not_started') touched.push(id)
 }
 
+/**
+ * Pick ISO control ids that are currently `not_started`, so implementing them
+ * genuinely moves the implemented count by exactly N regardless of how many
+ * other controls are already implemented (robust on fresh CI and dev DBs).
+ */
+async function pickNotStartedIsoIds(n) {
+  const ctrls = await client.get('/api/compliance/controls')
+  assert.equal(ctrls.status, 200)
+  const ids = (ctrls.data.controls || [])
+    .filter((c) => String(c.id).startsWith('iso-') && c.implementation_status === 'not_started')
+    .map((c) => c.id)
+    .slice(0, n)
+  return ids
+}
+
 test('compliance scoring responds to implemented controls and is reversible', async (t) => {
   if (skipIfDown(t)) return
 
-  // Use real ISO control ids from the library.
-  const ctrls = await client.get('/api/compliance/controls')
-  assert.equal(ctrls.status, 200)
-  const isoIds = (ctrls.data.controls || [])
-    .map((c) => c.id)
-    .filter((id) => String(id).startsWith('iso-'))
-    .slice(0, 5)
-  assert.equal(isoIds.length, 5, 'need 5 ISO controls to assess')
+  const isoIds = await pickNotStartedIsoIds(5)
+  if (isoIds.length < 5) {
+    return t.skip(`need 5 not_started ISO controls, found ${isoIds.length}`)
+  }
 
-  // (1) Baseline.
+  // (1) Baseline — whatever it currently is (delta-based, no zero assumption).
   const base = await isoScore()
-  assert.equal(base.implemented, 0, 'fresh org has no implemented controls')
-  assert.equal(base.score, 0, 'no implemented controls -> score 0')
 
   // (2) Implement 5 -> count rises by exactly 5; score strictly increases.
   for (const id of isoIds) await setStatus(id, 'implemented')
@@ -87,7 +99,8 @@ test('compliance scoring responds to implemented controls and is reversible', as
   assert.ok(up.score > base.score, `score should increase (was ${base.score}, now ${up.score})`)
   assert.equal(up.total, base.total, 'total control count is unchanged')
 
-  // (3) Revert -> count and score return to baseline (guards the UPDATE bug).
+  // (3) Revert -> count and score return to baseline (guards the UPDATE bug:
+  //     status downgrades used to silently fail via datetime("now")).
   for (const id of isoIds) await setStatus(id, 'not_started')
   const back = await isoScore()
   assert.equal(back.implemented, base.implemented, 'implemented count restored after revert')
@@ -97,11 +110,8 @@ test('compliance scoring responds to implemented controls and is reversible', as
 test('compliance scoring is monotonic: more implemented never lowers the score', async (t) => {
   if (skipIfDown(t)) return
 
-  const ctrls = await client.get('/api/compliance/controls')
-  const isoIds = (ctrls.data.controls || [])
-    .map((c) => c.id)
-    .filter((id) => String(id).startsWith('iso-'))
-    .slice(0, 6)
+  const isoIds = await pickNotStartedIsoIds(6)
+  if (isoIds.length === 0) return t.skip('no not_started ISO controls available')
 
   let prev = (await isoScore()).score
   for (let i = 0; i < isoIds.length; i++) {
