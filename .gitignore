@@ -24,10 +24,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Database backups (keep structure, not data)
-*.sql
+# Database files (keep migrations and seed, backup folder optional)
+# Uncomment next line if you want to exclude backups from git:
+# backups/**/*.sql
 !**/migrations/*.sql
 !**/seed.sql
+!**/backups/*.sql
 
 # Temporary files
 *.tmp
