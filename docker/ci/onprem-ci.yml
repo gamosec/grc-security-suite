@@ -1,0 +1,93 @@
+# On-prem CI for the GRC Security Suite
+# =====================================
+# Validates the self-hosted / Docker deployment WITHOUT touching the Cloudflare
+# production path. It:
+#   1. Runs the auth-hardening unit tests (bcrypt, legacy verify+upgrade, JWT).
+#   2. Verifies the build-time secret/URL rewrite: a default build must
+#      reproduce the production strings, and an env-driven build must replace
+#      them (and leave no production secret behind).
+#
+# This intentionally does NOT run the Cloudflare/vite build — those workflows
+# are owned elsewhere and the on-prem changes are additive (new files only).
+name: onprem-ci
+
+on:
+  push:
+    branches: [main, genspark_ai_developer]
+  pull_request:
+    branches: [main]
+
+jobs:
+  auth-unit-tests:
+    name: Auth hardening unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install on-prem test deps
+        working-directory: docker
+        run: npm install --no-audit --no-fund
+      - name: Run unit tests
+        working-directory: docker
+        run: npm test
+
+  build-rewrite-checks:
+    name: Build-time secret/URL rewrite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install GRC Pulse server deps
+        working-directory: grc-pulse/server
+        run: npm install --no-audit --no-fund
+
+      - name: Copy shared adapters (as the runtime image does)
+        run: |
+          mkdir -p grc-pulse/server/shared pentest-pulse/server/shared
+          cp docker/shared/*.mjs grc-pulse/server/shared/
+          cp docker/shared/*.mjs pentest-pulse/server/shared/
+
+      - name: GRC default build reproduces production strings
+        working-directory: grc-pulse/server
+        run: |
+          node build.mjs
+          grep -q '"grc-pulse-jwt-v5-2026"' dist-server/app.mjs
+          grep -q '"grcpulse-sync-2024"' dist-server/app.mjs
+          grep -q 'pentest-pulse.pages.dev' dist-server/app.mjs
+          echo "OK: default build = production parity"
+
+      - name: GRC env-driven build rewrites secrets and leaves no prod secret
+        working-directory: grc-pulse/server
+        env:
+          JWT_SECRET: ci-strong-jwt-secret-abc123xyz
+          SYNC_KEY: ci-strong-sync-key-def456uvw
+          PENTEST_PULSE_URL: http://pentest-pulse:3000
+        run: |
+          node build.mjs
+          grep -q 'ci-strong-jwt-secret-abc123xyz' dist-server/app.mjs
+          grep -q 'ci-strong-sync-key-def456uvw'  dist-server/app.mjs
+          ! grep -q 'grc-pulse-jwt-${JWT_VERSION}-2026' dist-server/app.mjs
+          ! grep -q 'grcpulse-sync-2024' dist-server/app.mjs
+          ! grep -q 'pentest-pulse.pages.dev' dist-server/app.mjs
+          echo "OK: env-driven build rewrote all hardcoded secrets/URLs"
+
+      - name: Install Pentest Pulse server deps
+        working-directory: pentest-pulse/server
+        run: npm install --no-audit --no-fund
+
+      - name: Pentest env-driven build rewrites sync key
+        working-directory: pentest-pulse/server
+        env:
+          SYNC_KEY: ci-strong-sync-key-def456uvw
+          GRC_PULSE_URL: http://grc-pulse:3000
+        run: |
+          node build.mjs
+          grep -q 'ci-strong-sync-key-def456uvw' dist-server/app.mjs
+          ! grep -q 'grcpulse-sync-2024' dist-server/app.mjs
+          ! grep -q 'grc-pulse.pages.dev' dist-server/app.mjs
+          echo "OK: pentest env-driven build rewrote sync key + URL"
