@@ -59,11 +59,69 @@ function convertPlaceholders(sql) {
 }
 
 /**
+ * Translate SQLite's `INSERT OR REPLACE` / `INSERT OR IGNORE` (unsupported by
+ * PostgreSQL) into the equivalent `INSERT ... ON CONFLICT` upsert.
+ *
+ *   INSERT OR IGNORE INTO t (...) VALUES (...)
+ *     -> INSERT INTO t (...) VALUES (...) ON CONFLICT DO NOTHING
+ *
+ *   INSERT OR REPLACE INTO t (c1, c2, ...) VALUES (...)
+ *     -> INSERT INTO t (c1, c2, ...) VALUES (...)
+ *        ON CONFLICT (c1) DO UPDATE SET c2 = EXCLUDED.c2, ...
+ *
+ * REPLACE upserts on the first column, which is the primary key (`id`) for
+ * every table this codebase uses OR REPLACE on, and updates every other listed
+ * column from the proposed row — matching SQLite's replace-the-whole-row
+ * semantics. If we cannot parse a column list we fall back to a plain INSERT
+ * with ON CONFLICT DO NOTHING rather than emit invalid SQL.
+ *
+ * Runs before placeholder conversion, so VALUES still contain `?`; we only ever
+ * read the column-name list, never the value list, so that is safe.
+ */
+function translateInsertOr(sql) {
+  if (!/\bINSERT\s+OR\s+(REPLACE|IGNORE)\b/i.test(sql)) return sql
+
+  // INSERT OR IGNORE -> strip the OR IGNORE, append ON CONFLICT DO NOTHING
+  // (unless the statement already carries its own ON CONFLICT clause).
+  sql = sql.replace(/\bINSERT\s+OR\s+IGNORE\s+INTO\b/gi, 'INSERT INTO')
+  // (handled below after we know whether REPLACE is present)
+
+  // INSERT OR REPLACE INTO <table> ( <cols> ) ...
+  const replaceRe = /\bINSERT\s+OR\s+REPLACE\s+INTO\s+([A-Za-z_][A-Za-z0-9_."]*)\s*\(([^)]*)\)/i
+  const m = replaceRe.exec(sql)
+  if (m) {
+    const table = m[1]
+    const cols = m[2].split(',').map((c) => c.trim()).filter(Boolean)
+    const head = `INSERT INTO ${table} (${m[2]})`
+    let conflict
+    if (cols.length >= 1) {
+      const key = cols[0]
+      const updates = cols.slice(1).map((c) => `${c} = EXCLUDED.${c}`)
+      conflict = updates.length
+        ? ` ON CONFLICT (${key}) DO UPDATE SET ${updates.join(', ')}`
+        : ` ON CONFLICT (${key}) DO NOTHING`
+    } else {
+      conflict = ' ON CONFLICT DO NOTHING'
+    }
+    // Replace the INSERT...(cols) head, and append the conflict clause at the end.
+    sql = sql.replace(replaceRe, head) + conflict
+    return sql
+  }
+
+  // Only OR IGNORE remained: append DO NOTHING if not already present.
+  if (/\bINSERT\s+INTO\b/i.test(sql) && !/\bON\s+CONFLICT\b/i.test(sql)) {
+    // Append at the very end of the statement (after VALUES / SELECT source).
+    sql = sql.replace(/;?\s*$/, ' ON CONFLICT DO NOTHING')
+  }
+  return sql
+}
+
+/**
  * Translate the handful of SQLite date/time helpers that appear in runtime
  * queries into PostgreSQL equivalents.
  */
 function translateSqliteFunctions(sql) {
-  let s = sql
+  let s = translateInsertOr(sql)
   // Normalise double-quoted "now" to the single-quoted form. Some app code
   // writes datetime("now") — in SQLite double quotes fall back to a string
   // literal, but in PostgreSQL "now" is a *column identifier*, which throws
