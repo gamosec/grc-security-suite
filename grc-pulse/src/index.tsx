@@ -574,7 +574,7 @@ app.get('/api/dashboard', async (c) => {
 
   try {
     // OPTIMIZED: Batch all queries in parallel using db.batch()
-    const [risksResult, vendorResult, incidentsResult, controlAssessmentsResult, controlsLinkedResult, activityResult, openRisksResult] = await db.batch([
+    const [risksResult, vendorResult, incidentsResult, controlAssessmentsResult, controlsLinkedResult, activityResult, openRisksResult, riskRowsResult] = await db.batch([
       // Get risk summary (use inherent_score for severity classification)
       // IMPORTANT: Thresholds must match Compliance Dashboard exactly!
       // Critical: >= 75, High: >= 50 and < 75, Medium: >= 25 and < 50, Low: < 25
@@ -631,6 +631,11 @@ app.get('/api/dashboard', async (c) => {
       db.prepare(`
         SELECT COUNT(*) as open_risks FROM risk_items 
         WHERE organization_id = ? AND status IN ('open', 'in_progress')
+      `).bind(orgId),
+      // Get raw open-risk rows for the canonical deduction calculation
+      db.prepare(`
+        SELECT id, inherent_score, status FROM risk_items
+        WHERE organization_id = ? AND status IN ('open', 'in_progress')
       `).bind(orgId)
     ])
     
@@ -642,54 +647,29 @@ app.get('/api/dashboard', async (c) => {
     const controlsLinked = controlsLinkedResult.results[0] || {} as any
     const activity = activityResult.results || []
     const openRisks = openRisksResult.results[0] || {} as any
+    const openRiskRows = riskRowsResult.results || []
 
-    // Calculate RISK-ADJUSTED compliance score
-    // IMPORTANT: This must match the Compliance Dashboard calculation exactly!
-    // Base Score = (implemented / total) * 100
-    // Risk Penalty = Critical×2 + High×1 + Medium(tiered)
-    // Final Score = Base Score - Risk Penalty (capped at 25)
-    // 
-    // This ensures:
-    // - Score DECREASES when critical/high risks are opened (pentest finds issues)
-    // - Score INCREASES when risks are mitigated (issues fixed)
-    // - Score reflects ACTUAL security posture, not just paperwork compliance
-    // - CONSISTENT with Compliance Dashboard and Gap Assessment
-    
+    // Calculate RISK-ADJUSTED compliance score using the CANONICAL helper
+    // (computeComplianceScore) so this number is identical on the Compliance
+    // Dashboard, Executive Summary and trends. See computeRiskDeduction() for
+    // the model:
+    //   Base Score      = implemented / total * 100
+    //   Risk Deduction  = per-open-risk points (Critical 5, High 3, Medium 1,
+    //                     Low 0.5), in_progress at half weight, capped at 40
+    //   Final Score     = max(0, round(Base - Deduction))
+    // This guarantees opening/closing a Critical/High finding always moves the
+    // score, and works for every risk source once inherent_score is 0-100.
     let baseScore = 0
-    let riskPenalty = 0
-    let criticalPenalty = 0
-    let highPenalty = 0
-    let mediumPenalty = 0
-    
     if (controlAssessments?.total && controlAssessments.total > 0) {
       baseScore = Math.round((controlAssessments.implemented / controlAssessments.total) * 100)
-      
-      // Calculate risk penalty using SAME formula as Compliance Dashboard
-      // Critical (score >= 75): -2 points each
-      // High (score 50-74): -1 point each  
-      // Medium (score 25-49): Tiered penalty (0 for 1-2, -1 for 3-5, -2 for 6-9, -3 for 10+)
-      // Low (score < 25): No penalty
-      
-      criticalPenalty = (risks?.critical || 0) * 2
-      highPenalty = (risks?.high || 0) * 1
-      
-      // Tiered medium penalty
-      const mediumCount = risks?.medium || 0
-      if (mediumCount >= 10) {
-        mediumPenalty = 3
-      } else if (mediumCount >= 6) {
-        mediumPenalty = 2
-      } else if (mediumCount >= 3) {
-        mediumPenalty = 1
-      } else {
-        mediumPenalty = 0
-      }
-      
-      // Total penalty capped at 25 points (same as Compliance Dashboard)
-      riskPenalty = Math.min(25, criticalPenalty + highPenalty + mediumPenalty)
     }
-    
-    const complianceScore = Math.max(0, baseScore - riskPenalty)
+
+    const scored = computeComplianceScore(baseScore, openRiskRows)
+    const complianceScore = scored.score
+    const riskPenalty = scored.deduction
+    const criticalPenalty = scored.detail.byPoints.critical
+    const highPenalty = scored.detail.byPoints.high
+    const mediumPenalty = scored.detail.byPoints.medium
 
     return c.json({
       riskSummary: {
@@ -12687,6 +12667,91 @@ function calculateWeightedOpenRatio(risks: any[]): {
   }
 }
 
+// ============================================================================
+// CANONICAL COMPLIANCE SCORING (single source of truth)
+// ----------------------------------------------------------------------------
+// Every screen (Main Dashboard, Compliance Dashboard, Executive Summary,
+// trends) MUST use these helpers so the number is identical everywhere.
+//
+// Model: Weighted Deduction
+//   Base Score      = implemented / applicable controls * 100
+//   Risk Deduction  = sum over each OPEN risk of a per-severity point value,
+//                     where an 'in_progress' risk deducts at HALF weight
+//                     (it is actively being remediated).
+//   Final Score     = max(0, round(Base - min(Deduction, cap)))
+//
+// Deductions are per-risk and large enough that opening/closing a single
+// Critical/High finding always moves the score. Severity is derived from the
+// canonical getSeverityFromScore() bucket, so it works for every risk source
+// once inherent_score is on the 0-100 scale (pentest sync now normalises it).
+// ============================================================================
+const RISK_DEDUCTION_POINTS: Record<string, number> = {
+  'critical': 5,
+  'high': 3,
+  'medium': 1,
+  'low': 0.5,
+  'informational': 0
+}
+// Cap total risk deduction so a heavily-tested org still reflects its control
+// coverage rather than flooring at 0 from findings alone.
+const MAX_RISK_DEDUCTION = 40
+
+interface RiskDeductionResult {
+  deduction: number            // capped, applied to the score
+  rawDeduction: number         // uncapped total (for transparency)
+  isCapped: boolean
+  counts: { critical: number; high: number; medium: number; low: number }
+  byPoints: { critical: number; high: number; medium: number; low: number }
+}
+
+// Compute the risk deduction from a list of risk rows.
+// Each row needs: inherent_score (0-100) and status.
+function computeRiskDeduction(risks: any[]): RiskDeductionResult {
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 }
+  const byPoints = { critical: 0, high: 0, medium: 0, low: 0 }
+  let rawDeduction = 0
+
+  for (const risk of risks) {
+    const status = (risk.status || '').toLowerCase()
+    // Only OPEN / IN_PROGRESS risks reduce the score. Anything closed,
+    // mitigated, accepted, transferred, etc. no longer deducts — so fixing a
+    // finding immediately raises the score.
+    if (status !== 'open' && status !== 'in_progress') continue
+
+    const severity = getSeverityFromScore(risk.inherent_score || 0)
+    const base = RISK_DEDUCTION_POINTS[severity] ?? 0
+    // in_progress = being remediated -> half penalty of an untouched open risk.
+    const points = status === 'in_progress' ? base / 2 : base
+
+    if (severity === 'critical' || severity === 'high' || severity === 'medium' || severity === 'low') {
+      counts[severity]++
+      byPoints[severity] += points
+    }
+    rawDeduction += points
+  }
+
+  const deduction = Math.min(rawDeduction, MAX_RISK_DEDUCTION)
+  return {
+    deduction: Math.round(deduction * 10) / 10,
+    rawDeduction: Math.round(rawDeduction * 10) / 10,
+    isCapped: rawDeduction > MAX_RISK_DEDUCTION,
+    counts,
+    byPoints
+  }
+}
+
+// Compose the final compliance score from a base (0-100) and a risk list.
+function computeComplianceScore(baseScore: number, risks: any[]): {
+  score: number
+  baseScore: number
+  deduction: number
+  detail: RiskDeductionResult
+} {
+  const detail = computeRiskDeduction(risks)
+  const score = Math.max(0, Math.round(baseScore - detail.deduction))
+  return { score, baseScore: Math.round(baseScore), deduction: detail.deduction, detail }
+}
+
 async function recalculateControlStatus(db: D1Database, controlId: string, orgId: string): Promise<ControlSyncResult> {
   // Get all risks linked to this control with severity info
   const linkedRisks = await db.prepare(`
@@ -13276,6 +13341,16 @@ app.post('/api/sync/pentest/pull', async (c) => {
           severity: finding.severity || 'medium',
           technical_details: finding.technical_details ? JSON.parse(finding.technical_details) : {}
         }
+
+        // Normalise to GRC's 0-100 scale. Prefer the pentest severity label
+        // (critical=95, high=75, medium=50, low=25); only fall back to the raw
+        // inherent_score if it already looks like a 0-100 value (>25).
+        const severityToScoreIn: Record<string, number> = {
+          'critical': 95, 'high': 75, 'medium': 50, 'low': 25, 'informational': 10
+        }
+        const sevIn = (finding.pentest_severity || finding.severity || '').toLowerCase()
+        const normalizedScore = severityToScoreIn[sevIn]
+          ?? (finding.inherent_score > 25 ? finding.inherent_score : 50)
         
         if (existing) {
           // UPDATE existing risk
@@ -13302,7 +13377,7 @@ app.post('/api/sync/pentest/pull', async (c) => {
             finding.subcategory || null,
             (finding.inherent_likelihood || 3) / 5, // Normalize to 0-1
             (finding.inherent_impact || 3) / 5,
-            finding.inherent_score || 36,
+            normalizedScore,
             mapPentestStatus(finding.status),
             finding.remediation_plan || null,
             finding.due_date || null,
@@ -13331,7 +13406,7 @@ app.post('/api/sync/pentest/pull', async (c) => {
             finding.external_reference,
             (finding.inherent_likelihood || 3) / 5,
             (finding.inherent_impact || 3) / 5,
-            finding.inherent_score || 36,
+            normalizedScore,
             mapPentestStatus(finding.status),
             finding.remediation_plan || null,
             finding.due_date || null,
@@ -13894,19 +13969,24 @@ app.get('/api/compliance/dashboard', async (c) => {
       FROM risk_items 
       WHERE organization_id = ? 
         AND status IN ('open', 'in_progress')
-        AND inherent_score >= 20
       ORDER BY inherent_score DESC
     `).bind(orgId).all()
     
     const riskList = activeRisks.results || []
-    let criticalRiskCount = 0
-    let highRiskCount = 0
-    let mediumRiskCount = 0
-    let criticalPenalty = 0
-    let highPenalty = 0
-    let mediumPenalty = 0
-    
-    // Track risks by source for detailed breakdown
+
+    // CANONICAL deduction (same helper the Main Dashboard uses) — per-open-risk
+    // points (Critical 5, High 3, Medium 1, Low 0.5), in_progress at half,
+    // capped at 40. This replaces the old tiered ±1/±2 model so the score
+    // actually moves when a finding is opened/closed.
+    const deductionResult = computeRiskDeduction(riskList)
+    const criticalRiskCount = deductionResult.counts.critical
+    const highRiskCount = deductionResult.counts.high
+    const mediumRiskCount = deductionResult.counts.medium
+    const criticalPenalty = deductionResult.byPoints.critical
+    const highPenalty = deductionResult.byPoints.high
+    const mediumPenalty = deductionResult.byPoints.medium
+
+    // Per-source breakdown (for the UI's "by source" panel).
     const risksBySource: Record<string, { count: number, penalty: number, critical: number, high: number, medium: number }> = {
       'penetration_test': { count: 0, penalty: 0, critical: 0, high: 0, medium: 0 },
       'audit_finding': { count: 0, penalty: 0, critical: 0, high: 0, medium: 0 },
@@ -13915,60 +13995,23 @@ app.get('/api/compliance/dashboard', async (c) => {
       'compliance_gap': { count: 0, penalty: 0, critical: 0, high: 0, medium: 0 },
       'other': { count: 0, penalty: 0, critical: 0, high: 0, medium: 0 }
     }
-    
-    // First pass: count risks by severity
-    // IMPORTANT: Thresholds must match Main Dashboard exactly!
-    // Critical: >= 75, High: >= 50 and < 75, Medium: >= 25 and < 50, Low: < 25
     riskList.forEach((risk: any) => {
       const source = risksBySource[risk.risk_source] ? risk.risk_source : 'other'
+      const status = (risk.status || '').toLowerCase()
+      if (status !== 'open' && status !== 'in_progress') return
+      const severity = getSeverityFromScore(risk.inherent_score || 0)
+      const base = RISK_DEDUCTION_POINTS[severity] ?? 0
+      const points = status === 'in_progress' ? base / 2 : base
       risksBySource[source].count++
-      
-      if (risk.inherent_score >= 75) {
-        // Critical risk: -2 points each
-        criticalPenalty += 2
-        criticalRiskCount++
-        risksBySource[source].penalty += 2
-        risksBySource[source].critical++
-      } else if (risk.inherent_score >= 50) {
-        // High risk: -1 point each
-        highPenalty += 1
-        highRiskCount++
-        risksBySource[source].penalty += 1
-        risksBySource[source].high++
-      } else if (risk.inherent_score >= 25) {
-        // Medium risk: counted for tiered penalty
-        mediumRiskCount++
-        risksBySource[source].medium++
-      }
+      risksBySource[source].penalty += points
+      if (severity === 'critical') risksBySource[source].critical++
+      else if (severity === 'high') risksBySource[source].high++
+      else if (severity === 'medium') risksBySource[source].medium++
     })
-    
-    // Calculate tiered medium risk penalty
-    // 1-2 medium: 0 pts, 3-5 medium: -1 pt, 6-9 medium: -2 pts, 10+ medium: -3 pts
-    if (mediumRiskCount >= 10) {
-      mediumPenalty = 3
-    } else if (mediumRiskCount >= 6) {
-      mediumPenalty = 2
-    } else if (mediumRiskCount >= 3) {
-      mediumPenalty = 1
-    } else {
-      mediumPenalty = 0
-    }
-    
-    // Distribute medium penalty across sources proportionally
-    if (mediumPenalty > 0) {
-      Object.keys(risksBySource).forEach(source => {
-        if (risksBySource[source].medium > 0) {
-          const proportion = risksBySource[source].medium / mediumRiskCount
-          risksBySource[source].penalty += Math.round(mediumPenalty * proportion * 10) / 10
-        }
-      })
-    }
-    
-    // Calculate total penalty
-    const riskPenalty = criticalPenalty + highPenalty + mediumPenalty
-    
-    // Cap penalty at 25 points max
-    const cappedPenalty = Math.min(riskPenalty, 25)
+
+    // Total penalty (already capped by the helper).
+    const riskPenalty = deductionResult.rawDeduction
+    const cappedPenalty = deductionResult.deduction
     
     // Apply penalty to all framework scores
     const adjustedFrameworkData = frameworkData.map(fw => {
