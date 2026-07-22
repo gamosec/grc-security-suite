@@ -13,6 +13,9 @@ SET CONSTRAINTS ALL DEFERRED;
 
 
 
+
+
+
 INSERT INTO grc_pulse.organizations   (id, name, slug, industry, size, subscription_tier, compliance_frameworks)
 VALUES (
     'org-001',
@@ -22,6 +25,36 @@ VALUES (
     'enterprise',
     'enterprise',
     '["SOC2", "ISO27001", "GDPR", "PCI_DSS"]'
+)
+ON CONFLICT DO NOTHING;
+
+
+INSERT INTO grc_pulse.organizations   (id, name, slug, industry, size, subscription_tier, compliance_frameworks)
+VALUES (
+    'org-002',
+    'Almadar',
+    'almadar',
+    'Technology',
+    'enterprise',
+    'enterprise',
+    '["SOC2", "ISO27001", "GDPR", "PCI_DSS"]'
+)
+ON CONFLICT DO NOTHING;
+
+
+
+INSERT INTO grc_pulse.users   (id, organization_id, email, first_name, last_name, display_name, job_title, department, role, status)
+VALUES (
+    'user-101',
+    'org-002',
+    'admin@almadar.io',
+    'Almadar',
+    'Admin',
+    'Almadar Admin',
+    'CISO',
+    'Security',
+    'org_admin',
+    'active'
 )
 ON CONFLICT DO NOTHING;
 

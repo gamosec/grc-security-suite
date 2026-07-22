@@ -3,7 +3,10 @@
 -- Demo data for testing the platform
 -- ============================================================================
 
--- Default Organization
+-- Organizations
+-- org-001 = Acme Corporation, org-002 = Almadar. Both orgs exist in BOTH
+-- systems (GRC Pulse + Pentest Pulse) with identical ids so cross-system sync
+-- (which matches on organization_id, not name) lines up per organization.
 INSERT OR IGNORE INTO organizations (id, name, slug, industry, size, subscription_tier, compliance_frameworks)
 VALUES (
     'org-001',
@@ -13,6 +16,34 @@ VALUES (
     'enterprise',
     'enterprise',
     '["SOC2", "ISO27001", "GDPR", "PCI_DSS"]'
+);
+
+-- Almadar organization (org-002)
+INSERT OR IGNORE INTO organizations (id, name, slug, industry, size, subscription_tier, compliance_frameworks)
+VALUES (
+    'org-002',
+    'Almadar',
+    'almadar',
+    'Technology',
+    'enterprise',
+    'enterprise',
+    '["SOC2", "ISO27001", "GDPR", "PCI_DSS"]'
+);
+
+-- Almadar (org-002) admin user. Password defaults to GrcDemo!2026 via the
+-- on-prem bcrypt seed correction (applied to any password-less user).
+INSERT OR IGNORE INTO users (id, organization_id, email, first_name, last_name, display_name, job_title, department, role, status)
+VALUES (
+    'user-101',
+    'org-002',
+    'admin@almadar.io',
+    'Almadar',
+    'Admin',
+    'Almadar Admin',
+    'CISO',
+    'Security',
+    'org_admin',
+    'active'
 );
 
 -- Default Admin User
