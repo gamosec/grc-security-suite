@@ -81,3 +81,29 @@ GRC Pulse is a live GRC platform that turns real-time pentest and audit findings
 - If there are more fields below (takeaways, outline, bio, "is this a product
   pitch?"), use files `01`, `02`, and `06` — send me a screenshot and I'll map
   each one.
+
+---
+
+## FIELD 4 — Session Outcomes  (limit: 100 words)
+
+### ✅ PASTE THIS (94 words)
+```
+Attendees will leave able to: explain why a static compliance percentage is misleading and what a defensible score looks like; apply a concrete risk-weighted scoring model (control-coverage base minus severity-weighted open-risk deductions, capped and bounded); detect and fix the severity scale-mismatch that silently breaks pentest-to-GRC integrations; design framework-agnostic control mapping so one finding scores many regulators at once (ISO 27001, SOC 2, GDPR, NIST CSF, PCI-DSS); and architect a GRC platform that runs both on-premises and at the edge from a single codebase. They also get access to an open MVP platform to try.
+```
+
+---
+
+## FIELD 5 — What new research, concept, technique or approach is included?  (limit: 200 words)
+
+### ✅ PASTE THIS (188 words)
+```
+This session introduces original, unpublished work rather than a survey of existing tools. Three contributions are new:
+
+First, a Weighted Deduction compliance-scoring model: a control-coverage base score reduced by open and in-progress risks weighted by severity (critical, high, medium, low), with in-progress items at half weight and a bounded cap, producing a single explainable, auditable number computed by one shared function across every view.
+
+Second, an analysis of the severity scale-mismatch failure mode: connecting a pentest tool that scores 1-25 (likelihood times impact) to a GRC tool that buckets 0-100 silently files critical findings as low, so closing them never moves the score. We show how to detect it and normalize severity at the integration boundary.
+
+Third, a framework-agnostic mapping engine: a finding maps to controls, controls map to requirements, so one finding simultaneously affects ISO 27001, SOC 2, GDPR, NIST CSF and PCI-DSS, and adding a new regulator means adding a mapping table, not changing the score.
+
+All three are demonstrated live on a real working platform with a reproducible result: a critical finding drops the score from 52 to 47 and remediation restores it to 52.
+```
