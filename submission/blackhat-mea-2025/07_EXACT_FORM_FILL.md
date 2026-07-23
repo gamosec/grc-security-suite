@@ -1,109 +1,115 @@
-# 07 — EXACT FORM FILL (Black Hat MEA portal)
+# 07 — EXACT FORM FILL (Black Hat MEA portal)  ★ COMPLETE-SUITE VERSION
 
-> Matched to the real portal fields you're looking at:
-> **Session Title ≤ 20 words · Category (dropdown) · Session Overview ≤ 250 words.**
-> Copy-paste the recommended option into each field.
+> This version tells the WHOLE story: the three connected systems (AutoAudit +
+> GRC Pulse + Pentest Pulse), how the security team works together, and how
+> EVERY input — an auditor's non-conformity, a GRC self-assessment risk, a
+> pentester's finding — flows into ONE live compliance score, plus the real
+> benefit/outcome for the team.
+>
+> Fields matched to the real portal:
+> Session Title ≤20 · Session Overview ≤250 · Session Outcomes ≤100 ·
+> New research/concept ≤200. All texts below are verified under limit.
 
 ---
 
 ## FIELD 1 — Session Title  (limit: 20 words)
 
-### ✅ RECOMMENDED (11 words)
+### ✅ RECOMMENDED (15 words)
 ```
-GRC Pulse: The Live Compliance Score That Moves When Your Findings Do
+GRC Security Suite: One Live Compliance Score From Audit, Risk and Pentest, In Real Time
 ```
 
-### Alternative titles (all under 20 words)
-- **A (12 words):** `The Compliance Score Is Lying: Building a Live, Framework-Agnostic GRC Score`
-- **B (13 words):** `GRC Pulse: A Live Compliance Score for Every Regulator, From Real Findings`
-- **C (14 words):** `From Findings to a Defensible Number: Live Compliance Scoring Across ISO, SOC 2 & GDPR`
-
-> Naming note: lead with **"GRC Pulse"** — it's your product/brand name and the
-> "Pulse" already signals *live/heartbeat*, which is exactly your thesis.
-> "GRC Pulse: The Live Compliance Score…" reads as *your live GRC platform*.
+### Alternatives (all under 20 words)
+- **A (13):** `GRC Security Suite: How Audit, Risk and Pentest Feed One Live Compliance Score`
+- **B (12):** `One Living Compliance Score: Integrating Audit, Risk and Penetration Testing for Any Regulator`
+- **C (14):** `GRC Pulse: The Live Compliance Score Your Auditors, Analysts and Pentesters All Move`
 
 ---
 
 ## FIELD 2 — Category (dropdown)
-
-Pick the closest match from whatever the dropdown offers. Best fit, in order:
-1. **Governance, Risk & Compliance (GRC)** — if present, choose this.
-2. **Security Management / Risk Management**
-3. **Defense / Blue Team / Security Operations**
-4. **Emerging / Innovation / New Tools** — acceptable fallback.
-
-> Tell me the exact options in the dropdown and I'll pick the single best one.
+Pick the closest: **Governance, Risk & Compliance (GRC)** → else Security/Risk
+Management → else Defense/Blue Team → else Emerging/Innovation.
+(Send me the dropdown options and I'll choose the exact one.)
 
 ---
 
 ## FIELD 3 — Session Overview  (limit: 250 words)
 
-### ✅ RECOMMENDED (≈235 words — fits under 250)
+### ✅ PASTE THIS (225 words)
 ```
-Ask any security team for their compliance score and you'll get a number. Ask why it's that number, or what happens when the red team closes a critical finding today, and you'll get a stale spreadsheet and a shrug. In most GRC tools the compliance score is a static checklist percentage: blind to live risk, impossible to trace to evidence, and out of date the moment it's signed.
+Security teams run governance, audit, risk, and penetration testing in separate tools, then try to reconcile them into a compliance number once a quarter. By the time the spreadsheet is signed, it is already wrong. This session presents the GRC Security Suite, an open, integrated GRC platform (MVP/POC) built around three connected systems: AutoAudit for ISO 27001 audit and gap analysis, GRC Pulse for risk and compliance management, and Pentest Pulse for penetration-test and findings management.
 
-This session presents GRC Pulse, the live compliance engine of an open, integrated GRC platform (MVP/POC) where a whole security team works across two connected systems, Pentest Pulse for findings and GRC Pulse for risk and compliance. Findings sync in real time and drive a risk-adjusted compliance score that moves the instant a finding is opened or remediated.
+The whole security team works together on one fabric. When an auditor raises a non-conformity, when a GRC analyst logs a risk during a self-assessment, or when a pentester reports a finding, every one of these events flows into GRC Pulse and updates a single, live, risk-adjusted compliance score in real time. After controls are implemented and assessed, the base compliance score rises; when new risks or findings open, the score is reduced by weighted deductions; when they are remediated, it recovers.
 
-We go deep on three things you can verify: a Weighted Deduction scoring model that produces a defensible, explainable number; the severity scale-mismatch bug that silently breaks most tool-to-GRC integrations, filing critical findings as low so closing them never moves the score; and a framework-agnostic mapping engine that lets one finding affect ISO 27001, SOC 2, GDPR, NIST CSF and PCI-DSS at once, extensible to any regulator.
-
-Then we prove it live: open a critical finding and watch the score fall from 52 to 47, close it and watch it recover to 52, deterministic and reversible. Attendees leave with a reusable scoring method, an integration fix, and an open platform to try.
+We show how the score is calculated so it is explainable and auditable, how findings map to controls and then to many regulators at once (ISO 27001, SOC 2, GDPR, NIST CSF, PCI-DSS), and we prove it live: open a critical finding and the score drops from 52 to 47; remediate it and it returns to 52. Attendees leave with a repeatable model and an open platform.
 ```
-
-### Shorter variant (≈150 words — if you prefer tighter)
-```
-Most GRC tools show a compliance score that is really a static checklist percentage: blind to live risk, untraceable to evidence, and stale the moment it's signed. This session presents GRC Pulse, the live compliance engine of an open, integrated GRC platform (MVP/POC) where a security team works across two connected systems, Pentest Pulse for findings and GRC Pulse for risk and compliance. Findings sync in real time into a risk-adjusted score that moves when a finding is opened or remediated. We break down a Weighted Deduction scoring model, the severity scale-mismatch bug that silently files critical findings as low, and a framework-agnostic mapping engine that scores ISO 27001, SOC 2, GDPR, NIST CSF and PCI-DSS from one finding, extensible to any regulator. Then we prove it live: open a critical finding, the score drops 52 to 47; close it, it recovers to 52.
-```
-
----
-
-## What is GRC Pulse? (your naming question, answered simply)
-
-Use this whenever a field or a person asks "what is GRC Pulse?":
-
-> **GRC Pulse is your live GRC platform** — the risk & compliance hub of the GRC
-> Security Suite. Instead of a static, once-a-year compliance percentage, GRC
-> Pulse keeps a **living compliance score** that updates in real time as your
-> security team's findings and risks change. The name "Pulse" = the heartbeat of
-> your compliance posture: always on, always current.
-
-**One-liner (for the "what is it" box):**
-```
-GRC Pulse is a live GRC platform that turns real-time pentest and audit findings into a continuously updated, framework-agnostic compliance score for any regulation.
-```
-
----
-
-## Quick tips for THIS form
-- **Title:** don't waste words — 11–14 words with "GRC Pulse" up front is ideal.
-- **Overview:** the 235-word version already ends on the live-demo money shot
-  (52→47→52) — reviewers love a concrete, provable result.
-- Keep it **research/methodology + open tool**, never a sales pitch.
-- If there are more fields below (takeaways, outline, bio, "is this a product
-  pitch?"), use files `01`, `02`, and `06` — send me a screenshot and I'll map
-  each one.
 
 ---
 
 ## FIELD 4 — Session Outcomes  (limit: 100 words)
 
-### ✅ PASTE THIS (94 words)
+### ✅ PASTE THIS (99 words)
 ```
-Attendees will leave able to: explain why a static compliance percentage is misleading and what a defensible score looks like; apply a concrete risk-weighted scoring model (control-coverage base minus severity-weighted open-risk deductions, capped and bounded); detect and fix the severity scale-mismatch that silently breaks pentest-to-GRC integrations; design framework-agnostic control mapping so one finding scores many regulators at once (ISO 27001, SOC 2, GDPR, NIST CSF, PCI-DSS); and architect a GRC platform that runs both on-premises and at the edge from a single codebase. They also get access to an open MVP platform to try.
+Attendees will understand how an integrated GRC suite connects audit, risk, and penetration testing into one workflow, and how every input, an auditor non-conformity, a GRC self-assessment risk, or a pentester finding, changes a single live compliance score. They will be able to design a compliance program where the score is continuous rather than a quarterly snapshot, explain any score to an auditor because every point is traceable to evidence, map one finding to many regulators at once, and prioritise remediation by its real impact on compliance. They also gain access to an open MVP platform to try themselves.
 ```
 
 ---
 
 ## FIELD 5 — What new research, concept, technique or approach is included?  (limit: 200 words)
 
-### ✅ PASTE THIS (188 words)
+### ✅ PASTE THIS (184 words)
 ```
-This session introduces original, unpublished work rather than a survey of existing tools. Three contributions are new:
+The new approach is treating governance, audit, risk, and offensive testing as one continuous compliance system rather than four disconnected activities reconciled quarterly. Three concrete contributions support this:
 
-First, a Weighted Deduction compliance-scoring model: a control-coverage base score reduced by open and in-progress risks weighted by severity (critical, high, medium, low), with in-progress items at half weight and a bounded cap, producing a single explainable, auditable number computed by one shared function across every view.
+First, a unified live scoring pipeline: control implementation and assessment set a base score, then risks from every source, audit non-conformities, GRC self-assessments, vulnerability scans, vendor reviews, and pentest findings, apply weighted deductions, so the compliance score reflects true posture in real time and recovers automatically as issues are remediated.
 
-Second, an analysis of the severity scale-mismatch failure mode: connecting a pentest tool that scores 1-25 (likelihood times impact) to a GRC tool that buckets 0-100 silently files critical findings as low, so closing them never moves the score. We show how to detect it and normalize severity at the integration boundary.
+Second, an explainable Weighted Deduction model: severity-weighted deductions (critical, high, medium, low), in-progress items at half weight, bounded by a cap, computed by one shared function so the number is identical and auditable across every dashboard.
 
-Third, a framework-agnostic mapping engine: a finding maps to controls, controls map to requirements, so one finding simultaneously affects ISO 27001, SOC 2, GDPR, NIST CSF and PCI-DSS, and adding a new regulator means adding a mapping table, not changing the score.
+Third, a framework-agnostic mapping engine: a finding maps to controls, controls map to requirements, so one issue scores ISO 27001, SOC 2, GDPR, NIST CSF and PCI-DSS simultaneously, and adding a regulator means adding a mapping table.
 
-All three are demonstrated live on a real working platform with a reproducible result: a critical finding drops the score from 52 to 47 and remediation restores it to 52.
+All of this runs on a real working platform, on-premises or at the edge, and is proven live: a critical finding drops the score from 52 to 47, remediation restores it to 52.
 ```
+
+---
+
+## Reference: how the complete suite works (for your talk + Q&A)
+
+**Three connected systems, one security team:**
+
+| System | Who uses it | What it produces |
+|--------|-------------|------------------|
+| **AutoAudit** | Auditors / ISO 27001 leads | Gap analysis, audit findings, **non-conformities (NCs)** |
+| **GRC Pulse** (hub) | GRC analysts, CISO, compliance | Risk register, control assessments, **the live compliance score** |
+| **Pentest Pulse** | Red team / pentesters | Penetration-test projects, assets, **security findings** |
+
+**How the live score reacts — every input path (all real in the platform):**
+
+1. **Auditor finds a non-conformity** → logged as an `audit_finding` risk in GRC
+   Pulse → weighted deduction → **score drops**.
+2. **GRC analyst runs a self-assessment** and adds a risk → `self_assessment`
+   risk → deduction → **score drops**.
+3. **Pentester reports a finding** in Pentest Pulse → syncs into GRC Pulse as a
+   `penetration_test` risk (normalized 0–100 severity) → deduction → **score drops**.
+4. **Team implements & assesses a control** → implemented/applicable ratio rises
+   → **base score rises**.
+5. **Any risk/finding is remediated or closed** → its deduction disappears →
+   **score recovers**.
+
+> The score = **(control coverage base) − (severity-weighted open risk from ALL
+> sources), capped**. One shared formula, every source, one live number, mapped
+> to every regulator.
+
+**The benefit / outcome for the organization:**
+- Compliance becomes **continuous**, not a once-a-year audit scramble.
+- The score is **defensible** — you can show an auditor exactly which finding
+  cost which points.
+- **One finding, many regulators** — no re-entering the same issue per framework.
+- **Prioritise remediation by compliance impact** — fix what moves the score most.
+- **Self-hostable** (on-prem PostgreSQL/Docker) for regulated/air-gapped orgs.
+
+---
+
+## Notes
+- MVP/POC framed honestly throughout.
+- Everything demoed is reproducible (52 → 47 → 52).
+- Not a product pitch — methodology + open tool.
