@@ -113,3 +113,54 @@ All of this runs on a real working platform, on-premises or at the edge, and is 
 - MVP/POC framed honestly throughout.
 - Everything demoed is reproducible (52 → 47 → 52).
 - Not a product pitch — methodology + open tool.
+
+---
+
+## FIELD 6 — Equipment / on-site needs  (no visible limit; keep concise)
+
+### ✅ PASTE THIS
+```
+Minimal requirements. I bring my own laptop and run the full platform locally, so no internet is required for the live demo (it works fully offline/on-premises). I need: a projector/HDMI or USB-C display connection, a screen resolution of at least 1080p, audio only if a short backup video is played, a lectern or table for the laptop, and standard power (a plug adapter is fine). A wireless presenter/clicker is helpful but not essential. No special network access, servers, or lab hardware are needed; the entire demo environment runs on the laptop and I carry a pre-recorded backup video as a fail-safe.
+```
+
+> Why this answer wins: it signals **zero risk** to the organizers — the demo
+> can't fail due to conference Wi-Fi, and you have a recorded fallback.
+
+---
+
+## FIELD 7 — Evidence you are a verified speaker  (whitepapers, videos, prior sessions, certifications)
+
+> ⚠️ This field is partly personal — I filled the platform/technical evidence
+> for you. **You must add your own name, links, prior talks, and certifications.**
+
+### ✅ TEMPLATE (edit the [brackets], then paste)
+```
+I am the creator of the GRC Security Suite, an open, working GRC platform (AutoAudit, GRC Pulse, Pentest Pulse) that this session demonstrates live. Supporting evidence:
+
+- Open-source project / source code: [GitHub URL - e.g., https://github.com/gamosec/grc-security-suite]
+- Technical whitepaper backing this talk: [link to the PDF you will attach / host]
+- Live demo video of the compliance score reacting in real time (52 -> 47 -> 52): [video link - upload to YouTube/Vimeo, unlisted is fine]
+- Working live instances: GRC Pulse and Pentest Pulse deployments [URLs]
+
+About me: [Your full name], [your role, e.g., Security/GRC Engineer], with [X] years working on governance, risk and compliance and information security.
+Certifications: [e.g., CISSP, CISA, CRISC, ISO 27001 Lead Auditor/Implementer - list what you hold].
+Previous speaking / community: [any prior talks, meetups, workshops, webinars, or publications - with links if available].
+LinkedIn: [your LinkedIn URL].
+```
+
+### Minimal version (if you have few links yet)
+```
+I am the creator and developer of the GRC Security Suite, the open platform demonstrated live in this session. Evidence of the work: the open-source repository [GitHub URL], a technical whitepaper on the scoring and mapping methodology [link], and a recorded demo showing the live compliance score moving in real time [video link]. I am [Your full name], a [security/GRC practitioner] with [X] years of hands-on GRC and information-security experience; certifications: [list], LinkedIn: [URL].
+```
+
+### 📌 What YOU need to provide for this field
+1. **Your full name** and role/title.
+2. **GitHub URL** for the repo (looks like `https://github.com/gamosec/grc-security-suite` — confirm it's public or make a public mirror).
+3. A **demo video link** — record the 90-second 52→47→52 run and upload (YouTube unlisted works).
+4. The **whitepaper as a hosted PDF** (I can generate the PDF from file 03 — just ask).
+5. Your **certifications** (CISSP / CISA / CRISC / ISO 27001 LA, etc. — whatever you hold).
+6. **Any prior talks** or a **LinkedIn** link.
+
+> Tip: reviewers weight (a) a real, inspectable tool, (b) a demo video, and
+> (c) relevant certifications most heavily. Even without prior Black Hat talks,
+> a working open platform + a clean demo video is strong evidence.
