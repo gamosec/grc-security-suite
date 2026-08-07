@@ -69,7 +69,7 @@ VALUES (
     'Khaled Gamo',
     'CISO',
     'Security',
-    'org_admin',
+    'super_admin',
     'active'
 )
 ON CONFLICT DO NOTHING;
