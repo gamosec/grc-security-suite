@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS grc_pulse.users (
     job_title TEXT,
     department TEXT,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended', 'pending')),
-    role TEXT DEFAULT 'analyst' CHECK (role IN ('super_admin', 'org_admin', 'security_lead', 'analyst', 'auditor', 'vendor')),
+    role TEXT DEFAULT 'analyst' CHECK (role IN ('super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'analyst', 'auditor', 'pentester', 'viewer', 'vendor')),
     last_login_at TEXT,
     created_at TEXT DEFAULT now(),
     updated_at TEXT DEFAULT now(),
@@ -339,6 +339,36 @@ CREATE TABLE IF NOT EXISTS grc_pulse.audit_logs (
 );
 
 
+-- Invitation tokens for the "Add Team Member" flow (org admin invites a user,
+-- who then sets their password via the invite link). Referenced by the
+-- application as `invitation_tokens`.
+CREATE TABLE IF NOT EXISTS grc_pulse.invitation_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES grc_pulse.users(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+    organization_id TEXT NOT NULL REFERENCES grc_pulse.organizations(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_by TEXT REFERENCES grc_pulse.users(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+    created_at TEXT DEFAULT now()
+);
+
+
+-- Application-level audit trail written by the user-management endpoints.
+-- Distinct from the richer `audit_logs` table above: the app writes to
+-- `audit_log` (singular) with entity_type/entity_id/details columns.
+CREATE TABLE IF NOT EXISTS grc_pulse.audit_log (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES grc_pulse.organizations(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+    user_id TEXT REFERENCES grc_pulse.users(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+    action TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    details TEXT,
+    created_at TEXT DEFAULT now()
+);
+
+
 CREATE TABLE IF NOT EXISTS grc_pulse.notifications (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES grc_pulse.organizations(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
@@ -369,6 +399,9 @@ CREATE INDEX IF NOT EXISTS idx_vendors_org ON grc_pulse.vendors(organization_id)
 CREATE INDEX IF NOT EXISTS idx_vendors_tier ON grc_pulse.vendors(organization_id, vendor_tier);
 CREATE INDEX IF NOT EXISTS idx_vendor_incidents_vendor ON grc_pulse.vendor_incidents(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON grc_pulse.audit_logs(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_org ON grc_pulse.audit_log(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invitation_tokens_token ON grc_pulse.invitation_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_invitation_tokens_user ON grc_pulse.invitation_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON grc_pulse.notifications(user_id, is_read);
 
 
