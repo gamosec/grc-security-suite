@@ -172,10 +172,10 @@ app.use('/api/*', async (c, next) => {
 // org_admin: Organization-level admin who manages their own organization
 const API_PERMISSIONS: Record<string, string[]> = {
   // Dashboard & Overview - executives need read access for high-level views
-  '/api/dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'analyst', 'viewer'],
+  '/api/dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'analyst', 'viewer', 'vendor'],
   
   // Risk Management - GRC managers handle day-to-day, executives can view summary
-  '/api/risks': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'executive', 'auditor', 'analyst'],
+  '/api/risks': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'executive', 'auditor', 'security_lead', 'analyst'],
   
   // Asset & Vendor Management - GRC managers only
   '/api/assets': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
@@ -183,8 +183,8 @@ const API_PERMISSIONS: Record<string, string[]> = {
   '/api/business-processes': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
   
   // Compliance - executives need read access for dashboard/summary views
-  '/api/compliance': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'executive', 'analyst'],
-  '/api/controls': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'analyst'],
+  '/api/compliance': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'executive', 'security_lead', 'analyst'],
+  '/api/controls': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'security_lead', 'analyst'],
   
   // Intelligence - strategic roles only
   '/api/graph': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
@@ -4566,28 +4566,32 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       // Super Admin - Platform management (all orgs)
       'super-admin': ['super_admin'],
       
-      // Overview - executives and above see dashboards
-      'dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'analyst', 'viewer'],
+      // Overview - executives and above see dashboards; operational roles
+      // (analyst, security_lead) and read-only vendor also land here.
+      'dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'analyst', 'viewer', 'vendor'],
       // My Action Items - remediation work list for roles that can own/oversee tasks
       // (excludes read-only 'viewer' and PentestPulse-only 'pentester')
       'action-items': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'auditor', 'analyst'],
       'executive-summary': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager'],
       
-      // Risk Management - GRC managers handle day-to-day risks
-      'risks': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'analyst'],
-      'risk-mitigation': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'analyst'],
+      // Risk Management - GRC managers + operational roles handle day-to-day risks
+      'risks': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'security_lead', 'analyst'],
+      'risk-mitigation': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'security_lead', 'analyst'],
       
       // Asset & Vendor Management - GRC managers only
       'assets': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
       'vendors': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
       
-      // Compliance - auditors can VIEW for verification
-      'compliance': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'analyst'],
-      'gap-assessment': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'analyst'],
-      'controls': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'analyst'],
+      // Compliance - auditors can VIEW for verification; operational roles remediate
+      'compliance': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'security_lead', 'analyst'],
+      'gap-assessment': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'security_lead', 'analyst'],
+      'controls': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'auditor', 'security_lead', 'analyst'],
       
-      // Organization Settings - managers and above
-      'org-settings': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
+      // Organization Settings - admins only. The page fetches
+      // /api/organization/* which is restricted to super_admin/org_admin, so
+      // the page list must match the API or ciso/grc_manager get a broken
+      // (403) page.
+      'org-settings': ['super_admin', 'org_admin'],
       
       // Audit Management - auditors primary workspace
       'audit-dashboard': ['super_admin', 'org_admin', 'ciso', 'auditor'],
