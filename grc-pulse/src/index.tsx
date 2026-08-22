@@ -4964,6 +4964,9 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
     // =================================================================
     let actionItemsScope = 'mine'; // 'mine' | 'all'
     let actionItemsType = 'all';   // 'all' | 'risk' | 'gap' | 'finding'
+    let actionItemsCache = [];     // last loaded items (for the assign modal)
+    let actionItemsUsers = [];     // org users for owner dropdown
+    let actionItemsUsersLoaded = false;
 
     function actionItemTypeMeta(type) {
       switch (type) {
@@ -5019,6 +5022,16 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
 
       const s = data.summary || { total: 0, overdue: 0, unassigned: 0, due_soon: 0, by_type: { risk:0, gap:0, finding:0 } };
       const items = data.items || [];
+      actionItemsCache = items;
+
+      // Load org users once for the owner dropdown (best-effort; some roles can't read /users)
+      if (!actionItemsUsersLoaded) {
+        try {
+          const u = await api('/users');
+          actionItemsUsers = (u && u.users) ? u.users : [];
+        } catch (e) { actionItemsUsers = []; }
+        actionItemsUsersLoaded = true;
+      }
 
       // Update sidebar badge with overdue count
       updateActionItemsBadge(s.overdue);
@@ -5046,7 +5059,8 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
             <td style="padding:12px;">\${actionItemStatusBadge(i.status)}</td>
             <td style="padding:12px;">\${i.owner_name ? escapeHtml(i.owner_name) : '<span style="color:#f59e0b;"><i class=\\'fas fa-user-slash\\'></i> Unassigned</span>'}</td>
             <td style="padding:12px;">\${dueCell(i)}</td>
-            <td style="padding:12px; text-align:right;">
+            <td style="padding:12px; text-align:right; white-space:nowrap;">
+              <button class="btn btn-sm btn-primary" onclick="openAssignModal('\${i.type}','\${i.id}')"><i class="fas fa-user-edit"></i> Assign</button>
               <button class="btn btn-sm btn-secondary" onclick="navigate('\${m.page}')"><i class="fas fa-arrow-right"></i> Open</button>
             </td>
           </tr>\`;
@@ -5114,6 +5128,133 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
     function setActionScope(scope) { actionItemsScope = scope; loadActionItems(); }
     function setActionType(type) { actionItemsType = type; loadActionItems(); }
     function refreshActionItems() { loadActionItems(); }
+
+    // Status options offered per source type
+    function actionStatusOptions(type, current) {
+      let opts;
+      if (type === 'risk') {
+        opts = [['open','Open'],['in_progress','In Progress'],['mitigated','Mitigated'],['accepted','Accepted'],['closed','Closed']];
+      } else if (type === 'gap') {
+        opts = [['not_started','Not Started'],['planned','Planned'],['in_progress','In Progress'],['implemented','Implemented']];
+      } else { // finding
+        opts = [['open','Open'],['in_progress','In Progress'],['remediation_planned','Remediation Planned'],['resolved','Resolved'],['closed','Closed']];
+      }
+      const cur = String(current || '').toLowerCase();
+      return opts.map(o => \`<option value="\${o[0]}" \${cur === o[0] ? 'selected' : ''}>\${o[1]}</option>\`).join('');
+    }
+
+    // Open the Assign / Update modal for a single action item
+    function openAssignModal(type, id) {
+      const item = actionItemsCache.find(i => i.type === type && String(i.id) === String(id));
+      if (!item) { showAlert('Item not found — try Refresh', 'error'); return; }
+
+      const m = actionItemTypeMeta(type);
+      const ownerOptions = actionItemsUsers.map(u =>
+        \`<option value="\${u.id}" \${item.owner_id === u.id ? 'selected' : ''}>\${escapeHtml(u.display_name || u.email)}</option>\`
+      ).join('');
+      // date input wants YYYY-MM-DD; strip any time component
+      const dueVal = item.due_date ? String(item.due_date).slice(0,10) : '';
+
+      const ownerNote = actionItemsUsers.length === 0
+        ? '<div style="font-size:12px; color:#f59e0b; margin-top:6px;"><i class="fas fa-info-circle"></i> No assignable users loaded (your role may not have user-list access). You can still set status &amp; due date.</div>'
+        : '';
+
+      document.getElementById('modal-container').innerHTML = \`
+        <div class="modal-overlay" onclick="closeModal(event)">
+          <div class="modal" style="max-width: 560px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+              <h3 class="modal-title"><i class="fas \${m.icon}" style="color:\${m.color}; margin-right:8px;"></i>Assign \${m.label}</h3>
+              <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+              <div style="margin-bottom:16px; padding:12px; background:var(--bg-tertiary); border-radius:8px;">
+                <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">\${m.label}</div>
+                <div style="font-weight:600; color:var(--text-primary); margin-top:2px;">\${escapeHtml(item.title || 'Untitled')}</div>
+              </div>
+
+              <div class="grid-2" style="gap:16px;">
+                <div class="form-group">
+                  <label class="form-label">Owner</label>
+                  <select class="form-select" id="assign-owner">
+                    <option value="">— Unassigned —</option>
+                    \${ownerOptions}
+                  </select>
+                  \${ownerNote}
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Due Date</label>
+                  <input type="date" class="form-input" id="assign-due" value="\${dueVal}">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="assign-status">
+                  \${actionStatusOptions(type, item.status)}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Remediation Plan <span style="color:var(--text-muted); font-weight:400;">(optional)</span></label>
+                <textarea class="form-textarea" id="assign-plan" rows="3" placeholder="What needs to be done...">\${escapeHtml(item.remediation_plan || '')}</textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+              <button class="btn btn-primary" onclick="saveActionItem('\${type}','\${id}')"><i class="fas fa-save"></i> Save</button>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    // Persist the assign-modal changes back to the correct source endpoint
+    async function saveActionItem(type, id) {
+      const ownerId = document.getElementById('assign-owner').value || null;
+      const due = document.getElementById('assign-due').value || null;
+      const status = document.getElementById('assign-status').value;
+      const plan = document.getElementById('assign-plan').value || null;
+      const ownerName = ownerId ? (actionItemsUsers.find(u => u.id === ownerId) || {}).display_name || null : null;
+
+      try {
+        if (type === 'risk') {
+          await api('/risks/' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({ assignee_id: ownerId, due_date: due, status: status, remediation_plan: plan })
+          });
+        } else if (type === 'gap') {
+          const item = actionItemsCache.find(i => i.type === 'gap' && String(i.id) === String(id));
+          const controlId = item ? item.control_library_id : null;
+          if (!controlId) { showAlert('Missing control reference — try Refresh', 'error'); return; }
+          await api('/compliance/assessment', {
+            method: 'POST',
+            body: JSON.stringify({
+              control_library_id: controlId,
+              implementation_status: status,
+              remediation_owner_id: ownerId,
+              remediation_due_date: due,
+              remediation_plan: plan
+            })
+          });
+        } else { // finding
+          await api('/audit/findings/' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              remediation_owner_id: ownerId,
+              remediation_owner_name: ownerName,
+              due_date: due,
+              status: status,
+              remediation_plan: plan
+            })
+          });
+        }
+        closeModal();
+        showAlert('Action item updated', 'success');
+        loadActionItems();
+      } catch (error) {
+        showAlert('Failed to save: ' + error.message, 'error');
+      }
+    }
 
     function updateActionItemsBadge(overdue) {
       const badge = document.getElementById('action-items-badge');
@@ -18103,7 +18244,7 @@ app.patch('/api/audit/findings/:id', async (c) => {
     
     const allowedFields = ['title', 'description', 'finding_type', 'severity', 'status', 'category',
       'affected_process', 'affected_department', 'root_cause', 'impact', 'likelihood', 'impact_score',
-      'recommendation', 'management_response', 'remediation_plan', 'remediation_owner_name', 'due_date',
+      'recommendation', 'management_response', 'remediation_plan', 'remediation_owner_name', 'remediation_owner_id', 'due_date',
       'closed_date', 'evidence', 'related_control_id']
     
     for (const field of allowedFields) {
