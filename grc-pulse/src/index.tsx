@@ -460,13 +460,20 @@ app.post('/api/invite/:token/accept', async (c) => {
       return c.json({ error: 'This invitation has expired' }, 410)
     }
     
-    // Update user with password and activate account
-    // In production, hash the password with bcrypt/argon2
+    // Hash the password using the same scheme as login (SHA-256 + salt)
+    // so the stored value matches what the login comparison computes.
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password + 'grc-pulse-salt')
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Update user with hashed password and activate account
     await db.prepare(`
       UPDATE users_new 
       SET password_hash = ?, status = 'active', updated_at = datetime('now')
       WHERE id = ?
-    `).bind(password, invite.user_id).run()
+    `).bind(passwordHash, invite.user_id).run()
     
     // Mark token as used
     await db.prepare(`
