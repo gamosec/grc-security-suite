@@ -195,7 +195,7 @@ const API_PERMISSIONS: Record<string, string[]> = {
   '/api/audit': ['super_admin', 'org_admin', 'ciso', 'auditor'],
   
   // Action Items - unified remediation work list; any operational role can see their own
-  '/api/action-items': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'security_lead', 'auditor', 'executive', 'pentester', 'analyst', 'viewer'],
+  '/api/action-items': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'security_lead', 'auditor', 'executive', 'analyst'],
   
   // User Management
   '/api/users': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
@@ -4491,8 +4491,9 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       
       // Overview - executives and above see dashboards
       'dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'viewer'],
-      // My Action Items - cross-functional remediation work list; all operational roles
-      'action-items': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'auditor', 'analyst', 'viewer'],
+      // My Action Items - remediation work list for roles that can own/oversee tasks
+      // (excludes read-only 'viewer' and PentestPulse-only 'pentester')
+      'action-items': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'auditor', 'analyst'],
       'executive-summary': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager'],
       
       // Risk Management - GRC managers handle day-to-day risks
