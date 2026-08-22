@@ -737,7 +737,84 @@ app.get('/api/notifications', async (c) => {
   
   try {
     const notifications: any[] = []
-    
+    const currentUserId = c.get('userId')
+
+    // 0. PERSONAL: My Action Items — remediation work assigned to the logged-in
+    //    user that is overdue or coming due in the next 7 days. Mirrors the
+    //    column semantics of GET /api/action-items (assignee_id / due_date on
+    //    risks, remediation_owner_id / remediation_due_date on gaps,
+    //    remediation_owner_id / due_date on findings). Placed first so the
+    //    person's own outstanding work is the top notification.
+    if (currentUserId) {
+      try {
+        // Count per source type separately, then sum in JS. Avoids UNION-ing a
+        // TEXT due_date (risks, findings) with a DATE due_date (gap remediation)
+        // — the app targets Cloudflare D1 (SQLite) but the on-prem adapter is
+        // PostgreSQL, which refuses to unify mixed column types in a UNION.
+        // The d1-pg adapter makes each `<col> < date('now')` comparison
+        // type-safe on its own.
+        const riskDue = await db.prepare(`
+          SELECT
+            SUM(CASE WHEN due_date < date('now') THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE WHEN due_date >= date('now') AND due_date <= date('now', '+7 days') THEN 1 ELSE 0 END) AS due_soon
+          FROM risk_items
+          WHERE organization_id = ? AND assignee_id = ? AND due_date IS NOT NULL
+            AND lower(COALESCE(status,'open')) NOT IN ('closed','accepted','mitigated','resolved')
+        `).bind(orgId, currentUserId).first()
+
+        const gapDue = await db.prepare(`
+          SELECT
+            SUM(CASE WHEN remediation_due_date < date('now') THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE WHEN remediation_due_date >= date('now') AND remediation_due_date <= date('now', '+7 days') THEN 1 ELSE 0 END) AS due_soon
+          FROM control_assessments
+          WHERE organization_id = ? AND remediation_owner_id = ? AND remediation_due_date IS NOT NULL
+            AND lower(COALESCE(implementation_status,'not_started')) NOT IN ('implemented')
+        `).bind(orgId, currentUserId).first()
+
+        const findingDue = await db.prepare(`
+          SELECT
+            SUM(CASE WHEN due_date < date('now') THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE WHEN due_date >= date('now') AND due_date <= date('now', '+7 days') THEN 1 ELSE 0 END) AS due_soon
+          FROM audit_findings
+          WHERE organization_id = ? AND remediation_owner_id = ? AND due_date IS NOT NULL
+            AND lower(COALESCE(status,'open')) NOT IN ('closed','resolved','accepted')
+        `).bind(orgId, currentUserId).first()
+
+        const overdue = Number((riskDue as any)?.overdue || 0) +
+                        Number((gapDue as any)?.overdue || 0) +
+                        Number((findingDue as any)?.overdue || 0)
+        const dueSoon = Number((riskDue as any)?.due_soon || 0) +
+                        Number((gapDue as any)?.due_soon || 0) +
+                        Number((findingDue as any)?.due_soon || 0)
+
+        if (overdue > 0) {
+          notifications.push({
+            id: 'my-actions-overdue',
+            type: 'action-items',
+            title: `${overdue} of your action item${overdue === 1 ? ' is' : 's are'} overdue`,
+            message: 'past the target completion date — review now',
+            severity: 'critical',
+            time: 'Overdue',
+            link: '#action-items'
+          })
+        }
+        if (dueSoon > 0) {
+          notifications.push({
+            id: 'my-actions-due-soon',
+            type: 'action-items',
+            title: `${dueSoon} of your action item${dueSoon === 1 ? ' is' : 's are'} due soon`,
+            message: 'due within the next 7 days',
+            severity: 'warning',
+            time: 'This week',
+            link: '#action-items'
+          })
+        }
+      } catch (e) {
+        // Non-fatal — personal action-item counts are best-effort.
+        console.error('My action-items notification error:', e)
+      }
+    }
+
     // 1. Check for high/critical risk items (use inherent_score or context_priority_score)
     const highRisks = await db.prepare(`
       SELECT COUNT(*) as count FROM risk_items 
@@ -4743,6 +4820,7 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
               'compliance': 'chart-line',
               'vendor': 'building',
               'control': 'shield-alt',
+              'action-items': 'user-clock',
               'success': 'check-circle'
             };
             const colors = {
@@ -4778,10 +4856,12 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
     // Navigate to notification link
     function navigateToLink(link) {
       closeModal();
-      if (link.startsWith('#')) {
+      if (link && link.startsWith('#')) {
         const page = link.substring(1);
-        if (typeof navigateTo === 'function') {
-          navigateTo(page);
+        // The app's router is navigate(page); guard access so we never try to
+        // open a page this role cannot see (e.g. viewer + #action-items).
+        if (typeof navigate === 'function' && (typeof hasAccess !== 'function' || hasAccess(page))) {
+          navigate(page);
         }
       }
     }
