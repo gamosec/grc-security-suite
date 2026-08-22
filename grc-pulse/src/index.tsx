@@ -194,6 +194,9 @@ const API_PERMISSIONS: Record<string, string[]> = {
   // Audit Management - auditors primary workspace
   '/api/audit': ['super_admin', 'org_admin', 'ciso', 'auditor'],
   
+  // Action Items - unified remediation work list; any operational role can see their own
+  '/api/action-items': ['super_admin', 'org_admin', 'ciso', 'grc_manager', 'security_lead', 'auditor', 'executive', 'pentester', 'analyst', 'viewer'],
+  
   // User Management
   '/api/users': ['super_admin', 'org_admin', 'ciso', 'grc_manager'],
   
@@ -998,6 +1001,186 @@ app.get('/api/risks', async (c) => {
   } catch (error) {
     console.error('List risks error:', error)
     return c.json({ error: 'Failed to list risks' }, 500)
+  }
+})
+
+// =====================================================================
+// ACTION ITEMS — unified remediation work list across Risks, Gaps and
+// Audit Findings. Each open/assigned item is normalised into a common
+// shape with an owner, due date and an "overdue" flag so the whole
+// organisation's outstanding remediation work can be tracked in one place.
+//   Query params:
+//     ?mine=1        -> only items assigned to the current logged-in user
+//     ?owner=<id>    -> only items assigned to a specific user id
+//     ?status=open   -> only items whose status is still open/in progress
+//     ?type=risk|gap|finding -> restrict to one source type
+// =====================================================================
+app.get('/api/action-items', async (c) => {
+  const db = c.env.DB
+  const orgId = c.get('orgId') || c.req.query('org_id')
+  const currentUserId = c.get('userId')
+
+  const mine = c.req.query('mine') === '1' || c.req.query('mine') === 'true'
+  const ownerFilter = c.req.query('owner') || (mine ? currentUserId : null)
+  const typeFilter = c.req.query('type') // risk | gap | finding
+  const onlyOpen = c.req.query('status') !== 'all' // default: only open items
+
+  // Statuses that count as "closed / done" for each source type
+  const RISK_CLOSED = ['closed', 'accepted', 'mitigated', 'resolved']
+  const GAP_DONE = ['implemented']
+  const FINDING_CLOSED = ['closed', 'resolved', 'accepted']
+
+  try {
+    const items: any[] = []
+
+    // ---- 1) Risks (risk_items) -------------------------------------
+    if (!typeFilter || typeFilter === 'risk') {
+      const riskRows = await db.prepare(`
+        SELECT r.id, r.title, r.status, r.due_date, r.remediation_plan,
+               r.assignee_id AS owner_id, r.residual_score, r.inherent_score,
+               u.display_name AS owner_name
+        FROM risk_items r
+        LEFT JOIN users_new u ON r.assignee_id = u.id
+        WHERE r.organization_id = ?
+      `).bind(orgId).all()
+
+      for (const r of ((riskRows.results || []) as any[])) {
+        const isClosed = RISK_CLOSED.includes(String(r.status || '').toLowerCase())
+        if (onlyOpen && isClosed) continue
+        items.push({
+          type: 'risk',
+          source: 'Risk Register',
+          id: r.id,
+          title: r.title,
+          status: r.status || 'open',
+          owner_id: r.owner_id || null,
+          owner_name: r.owner_name || null,
+          due_date: r.due_date || null,
+          remediation_plan: r.remediation_plan || null,
+          priority_score: r.residual_score ?? r.inherent_score ?? null,
+          link: '/dashboard#risks'
+        })
+      }
+    }
+
+    // ---- 2) Gaps (control_assessments) -----------------------------
+    if (!typeFilter || typeFilter === 'gap') {
+      const gapRows = await db.prepare(`
+        SELECT ca.id, ca.control_library_id, ca.implementation_status AS status,
+               ca.remediation_due_date AS due_date, ca.remediation_plan,
+               ca.remediation_owner_id AS owner_id, ca.maturity_level,
+               cl.control_id, cl.title AS control_title,
+               u.display_name AS owner_name
+        FROM control_assessments ca
+        JOIN control_library cl ON ca.control_library_id = cl.id
+        LEFT JOIN users_new u ON ca.remediation_owner_id = u.id
+        WHERE ca.organization_id = ?
+      `).bind(orgId).all()
+
+      for (const g of ((gapRows.results || []) as any[])) {
+        const isDone = GAP_DONE.includes(String(g.status || '').toLowerCase())
+        // Only surface gaps that actually need work: have a plan, an owner,
+        // a due date, or an explicit non-implemented status.
+        const hasWork = g.remediation_plan || g.owner_id || g.due_date ||
+                        (g.status && String(g.status).toLowerCase() !== 'not_started')
+        if (onlyOpen && isDone) continue
+        if (onlyOpen && !hasWork) continue
+        items.push({
+          type: 'gap',
+          source: 'Gap Assessment',
+          id: g.id,
+          title: g.control_id ? `${g.control_id} — ${g.control_title}` : g.control_title,
+          status: g.status || 'not_started',
+          owner_id: g.owner_id || null,
+          owner_name: g.owner_name || null,
+          due_date: g.due_date || null,
+          remediation_plan: g.remediation_plan || null,
+          priority_score: null,
+          control_library_id: g.control_library_id,
+          link: '/dashboard#compliance'
+        })
+      }
+    }
+
+    // ---- 3) Audit findings (audit_findings) ------------------------
+    if (!typeFilter || typeFilter === 'finding') {
+      const findingRows = await db.prepare(`
+        SELECT f.id, f.title, f.status, f.severity, f.due_date, f.remediation_plan,
+               f.remediation_owner_id AS owner_id, f.remediation_owner_name AS owner_name_raw,
+               u.display_name AS owner_name
+        FROM audit_findings f
+        LEFT JOIN users_new u ON f.remediation_owner_id = u.id
+        WHERE f.organization_id = ?
+      `).bind(orgId).all()
+
+      for (const f of ((findingRows.results || []) as any[])) {
+        const isClosed = FINDING_CLOSED.includes(String(f.status || '').toLowerCase())
+        if (onlyOpen && isClosed) continue
+        items.push({
+          type: 'finding',
+          source: 'Audit Finding',
+          id: f.id,
+          title: f.title,
+          status: f.status || 'open',
+          severity: f.severity || null,
+          owner_id: f.owner_id || null,
+          owner_name: f.owner_name || f.owner_name_raw || null,
+          due_date: f.due_date || null,
+          remediation_plan: f.remediation_plan || null,
+          priority_score: null,
+          link: '/dashboard#audit'
+        })
+      }
+    }
+
+    // ---- Owner filter (mine / specific owner) ----------------------
+    let filtered = items
+    if (ownerFilter) {
+      filtered = items.filter(i => i.owner_id === ownerFilter)
+    }
+
+    // ---- Compute overdue flag + days-until-due ---------------------
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    for (const i of filtered) {
+      i.overdue = false
+      i.days_until_due = null
+      if (i.due_date) {
+        const d = new Date(i.due_date)
+        if (!isNaN(d.getTime())) {
+          d.setHours(0, 0, 0, 0)
+          const diffDays = Math.round((d.getTime() - today.getTime()) / 86400000)
+          i.days_until_due = diffDays
+          i.overdue = diffDays < 0
+        }
+      }
+    }
+
+    // ---- Sort: overdue first, then soonest due, then unassigned last
+    filtered.sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1
+      const ad = a.due_date ? new Date(a.due_date).getTime() : Infinity
+      const bd = b.due_date ? new Date(b.due_date).getTime() : Infinity
+      return ad - bd
+    })
+
+    // ---- Summary counts --------------------------------------------
+    const summary = {
+      total: filtered.length,
+      overdue: filtered.filter(i => i.overdue).length,
+      unassigned: filtered.filter(i => !i.owner_id).length,
+      due_soon: filtered.filter(i => i.days_until_due !== null && i.days_until_due >= 0 && i.days_until_due <= 7).length,
+      by_type: {
+        risk: filtered.filter(i => i.type === 'risk').length,
+        gap: filtered.filter(i => i.type === 'gap').length,
+        finding: filtered.filter(i => i.type === 'finding').length
+      }
+    }
+
+    return c.json({ items: filtered, summary, filter: { mine, owner: ownerFilter, type: typeFilter || 'all' } })
+  } catch (error) {
+    console.error('Action items error:', error)
+    return c.json({ error: 'Failed to load action items', details: String(error) }, 500)
   }
 })
 
@@ -4224,6 +4407,7 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       <div id="alert-container"></div>
       <div id="super-admin-page" class="page"></div>
       <div id="dashboard-page" class="page active"></div>
+      <div id="action-items-page" class="page"></div>
       <div id="executive-summary-page" class="page"></div>
       <div id="risks-page" class="page"></div>
       <div id="risk-mitigation-page" class="page"></div>
@@ -4307,6 +4491,8 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       
       // Overview - executives and above see dashboards
       'dashboard': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'viewer'],
+      // My Action Items - cross-functional remediation work list; all operational roles
+      'action-items': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager', 'security_lead', 'auditor', 'analyst', 'viewer'],
       'executive-summary': ['super_admin', 'org_admin', 'ciso', 'executive', 'grc_manager'],
       
       // Risk Management - GRC managers handle day-to-day risks
@@ -4376,9 +4562,10 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       }
       
       // Overview section - for GRC users
-      if (hasAccess('dashboard') || hasAccess('executive-summary')) {
+      if (hasAccess('dashboard') || hasAccess('executive-summary') || hasAccess('action-items')) {
         html += '<div class="nav-section"><div class="nav-section-title">Overview</div>';
         if (hasAccess('dashboard')) html += '<div class="nav-item active" onclick="navigate(\\'dashboard\\')"><i class="fas fa-th-large"></i><span>Dashboard</span></div>';
+        if (hasAccess('action-items')) html += '<div class="nav-item" onclick="navigate(\\'action-items\\')"><i class="fas fa-clipboard-check"></i><span>My Action Items</span><span id="action-items-badge" style="display:none; font-size: 9px; background: var(--accent-red); color: white; padding: 2px 6px; border-radius: 10px; margin-left: auto;">0</span></div>';
         if (hasAccess('executive-summary')) html += '<div class="nav-item" onclick="navigate(\\'executive-summary\\')"><i class="fas fa-chart-pie"></i><span>Executive Summary</span></div>';
         html += '</div>';
       }
@@ -4465,6 +4652,8 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       } else {
         // Normal dashboard load for other roles
         loadDashboard();
+        // Prime the "My Action Items" sidebar badge with overdue count
+        if (hasAccess('action-items')) primeActionItemsBadge();
       }
     });
     
@@ -4679,6 +4868,7 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
     const pages = {
       'super-admin': { title: 'Super Admin', subtitle: 'Platform-wide organization management' },
       dashboard: { title: 'Dashboard', subtitle: 'Real-time risk overview' },
+      'action-items': { title: 'My Action Items', subtitle: 'Your assigned remediation work across risks, gaps and audit findings' },
       'executive-summary': { title: 'Executive Summary', subtitle: 'One-page GRC overview for leadership' },
       risks: { title: 'Risk Register', subtitle: 'Context-aware risk management' },
       'risk-mitigation': { title: 'Risk Mitigation', subtitle: 'Control-risk mapping and mitigation tracking' },
@@ -4744,6 +4934,7 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       try {
         switch(page) {
           case 'dashboard': await loadDashboard(); break;
+          case 'action-items': await loadActionItems(); break;
           case 'executive-summary': await loadExecutiveSummary(); break;
           case 'risks': await loadRisks(); break;
           case 'super-admin': await loadSuperAdmin(); break;
@@ -4766,6 +4957,181 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
       } catch (error) {
         container.innerHTML = '<div class="alert error">Failed to load data: ' + error.message + '</div>';
       }
+    }
+
+    // =================================================================
+    // MY ACTION ITEMS - unified remediation work list (risks + gaps + findings)
+    // =================================================================
+    let actionItemsScope = 'mine'; // 'mine' | 'all'
+    let actionItemsType = 'all';   // 'all' | 'risk' | 'gap' | 'finding'
+
+    function actionItemTypeMeta(type) {
+      switch (type) {
+        case 'risk':    return { label: 'Risk',    icon: 'fa-exclamation-triangle', color: '#ef4444', page: 'risks' };
+        case 'gap':     return { label: 'Gap',     icon: 'fa-tasks',                color: '#f59e0b', page: 'gap-assessment' };
+        case 'finding': return { label: 'Finding', icon: 'fa-search',               color: '#8b5cf6', page: 'audit-findings' };
+        default:        return { label: 'Item',    icon: 'fa-clipboard-check',      color: '#3b82f6', page: 'dashboard' };
+      }
+    }
+
+    function actionItemStatusBadge(status) {
+      const s = String(status || '').toLowerCase();
+      let color = '#6b7280';
+      if (['open','not_started'].includes(s)) color = '#ef4444';
+      else if (['in_progress','planned','remediation_planned'].includes(s)) color = '#f59e0b';
+      else if (['implemented','closed','resolved','mitigated','accepted'].includes(s)) color = '#22c55e';
+      const label = (status || 'open').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+      return \`<span class="badge" style="background:\${color}20; color:\${color};">\${label}</span>\`;
+    }
+
+    function dueCell(item) {
+      if (!item.due_date) return '<span style="color: var(--text-muted);">—</span>';
+      const d = item.due_date;
+      if (item.overdue) {
+        return \`<span style="color:#ef4444; font-weight:600;"><i class="fas fa-exclamation-circle"></i> \${d} <span style="font-size:11px;">(\${Math.abs(item.days_until_due)}d overdue)</span></span>\`;
+      }
+      if (item.days_until_due !== null && item.days_until_due <= 7) {
+        return \`<span style="color:#f59e0b; font-weight:600;">\${d} <span style="font-size:11px;">(in \${item.days_until_due}d)</span></span>\`;
+      }
+      return \`<span style="color: var(--text-secondary);">\${d}</span>\`;
+    }
+
+    async function loadActionItems() {
+      const container = document.getElementById('action-items-page');
+      container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading your action items...</div>';
+
+      // Toolbar (scope + type filters)
+      document.getElementById('page-actions').innerHTML = \`
+        <button class="btn btn-secondary btn-sm" onclick="refreshActionItems()"><i class="fas fa-sync"></i> Refresh</button>
+      \`;
+
+      const params = new URLSearchParams();
+      if (actionItemsScope === 'mine') params.set('mine', '1');
+      if (actionItemsType !== 'all') params.set('type', actionItemsType);
+
+      let data;
+      try {
+        data = await api('/action-items?' + params.toString());
+      } catch (e) {
+        container.innerHTML = '<div class="alert error">Failed to load action items: ' + e.message + '</div>';
+        return;
+      }
+
+      const s = data.summary || { total: 0, overdue: 0, unassigned: 0, due_soon: 0, by_type: { risk:0, gap:0, finding:0 } };
+      const items = data.items || [];
+
+      // Update sidebar badge with overdue count
+      updateActionItemsBadge(s.overdue);
+
+      const scopeBtn = (val, label) =>
+        \`<button class="btn btn-sm \${actionItemsScope === val ? 'btn-primary' : 'btn-secondary'}" onclick="setActionScope('\${val}')">\${label}</button>\`;
+      const typeBtn = (val, label) =>
+        \`<button class="btn btn-sm \${actionItemsType === val ? 'btn-primary' : 'btn-secondary'}" onclick="setActionType('\${val}')">\${label}</button>\`;
+
+      let rows = '';
+      if (items.length === 0) {
+        rows = \`<tr><td colspan="6" style="text-align:center; padding:40px; color: var(--text-muted);">
+          <i class="fas fa-check-circle" style="font-size:32px; color:#22c55e; display:block; margin-bottom:12px;"></i>
+          No open action items \${actionItemsScope === 'mine' ? 'assigned to you' : ''}. Nothing to remediate right now.
+        </td></tr>\`;
+      } else {
+        rows = items.map(i => {
+          const m = actionItemTypeMeta(i.type);
+          return \`<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:12px;"><span class="badge" style="background:\${m.color}20; color:\${m.color};"><i class="fas \${m.icon}"></i> \${m.label}</span></td>
+            <td style="padding:12px; max-width:340px;">
+              <div style="font-weight:600; color: var(--text-primary);">\${escapeHtml(i.title || 'Untitled')}</div>
+              \${i.remediation_plan ? \`<div style="font-size:12px; color: var(--text-muted); margin-top:2px;">\${escapeHtml(String(i.remediation_plan).slice(0,120))}\${String(i.remediation_plan).length>120?'…':''}</div>\` : ''}
+            </td>
+            <td style="padding:12px;">\${actionItemStatusBadge(i.status)}</td>
+            <td style="padding:12px;">\${i.owner_name ? escapeHtml(i.owner_name) : '<span style="color:#f59e0b;"><i class=\\'fas fa-user-slash\\'></i> Unassigned</span>'}</td>
+            <td style="padding:12px;">\${dueCell(i)}</td>
+            <td style="padding:12px; text-align:right;">
+              <button class="btn btn-sm btn-secondary" onclick="navigate('\${m.page}')"><i class="fas fa-arrow-right"></i> Open</button>
+            </td>
+          </tr>\`;
+        }).join('');
+      }
+
+      container.innerHTML = \`
+        <div class="metrics-grid" style="margin-bottom:16px;">
+          <div class="metric-card">
+            <div style="display:flex; justify-content:space-between;">
+              <div><div class="metric-value">\${s.total}</div><div class="metric-label">Open Items</div></div>
+              <div class="metric-icon blue"><i class="fas fa-clipboard-check"></i></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div style="display:flex; justify-content:space-between;">
+              <div><div class="metric-value" style="color:\${s.overdue>0?'#ef4444':'var(--text-primary)'}">\${s.overdue}</div><div class="metric-label">Overdue</div></div>
+              <div class="metric-icon red"><i class="fas fa-exclamation-circle"></i></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div style="display:flex; justify-content:space-between;">
+              <div><div class="metric-value" style="color:\${s.due_soon>0?'#f59e0b':'var(--text-primary)'}">\${s.due_soon}</div><div class="metric-label">Due &le; 7 days</div></div>
+              <div class="metric-icon purple"><i class="fas fa-clock"></i></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div style="display:flex; justify-content:space-between;">
+              <div><div class="metric-value" style="color:\${s.unassigned>0?'#f59e0b':'var(--text-primary)'}">\${s.unassigned}</div><div class="metric-label">Unassigned</div></div>
+              <div class="metric-icon yellow"><i class="fas fa-user-slash"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:12px; color:var(--text-muted); margin-right:4px;">Scope:</span>
+              \${scopeBtn('mine','Assigned to me')} \${scopeBtn('all','Whole organization')}
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:12px; color:var(--text-muted); margin-right:4px;">Type:</span>
+              \${typeBtn('all','All ('+s.total+')')} \${typeBtn('risk','Risks ('+s.by_type.risk+')')} \${typeBtn('gap','Gaps ('+s.by_type.gap+')')} \${typeBtn('finding','Findings ('+s.by_type.finding+')')}
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+              <thead>
+                <tr style="border-bottom:2px solid var(--border); text-align:left;">
+                  <th style="padding:12px; font-size:12px; color:var(--text-muted); text-transform:uppercase;">Type</th>
+                  <th style="padding:12px; font-size:12px; color:var(--text-muted); text-transform:uppercase;">Item</th>
+                  <th style="padding:12px; font-size:12px; color:var(--text-muted); text-transform:uppercase;">Status</th>
+                  <th style="padding:12px; font-size:12px; color:var(--text-muted); text-transform:uppercase;">Owner</th>
+                  <th style="padding:12px; font-size:12px; color:var(--text-muted); text-transform:uppercase;">Due</th>
+                  <th style="padding:12px;"></th>
+                </tr>
+              </thead>
+              <tbody>\${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      \`;
+    }
+
+    function setActionScope(scope) { actionItemsScope = scope; loadActionItems(); }
+    function setActionType(type) { actionItemsType = type; loadActionItems(); }
+    function refreshActionItems() { loadActionItems(); }
+
+    function updateActionItemsBadge(overdue) {
+      const badge = document.getElementById('action-items-badge');
+      if (!badge) return;
+      if (overdue && overdue > 0) {
+        badge.textContent = overdue;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    // On login, silently fetch overdue count for the sidebar badge (mine only)
+    async function primeActionItemsBadge() {
+      try {
+        const data = await api('/action-items?mine=1');
+        updateActionItemsBadge((data.summary || {}).overdue || 0);
+      } catch (e) { /* non-fatal */ }
     }
 
     // Dashboard
@@ -8051,6 +8417,16 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
     
     async function showControlDetail(controlId) {
       const control = await api('/compliance/control/' + controlId);
+      // Load org users for the remediation-owner dropdown (some roles can't
+      // read /users — fall back to an empty list so the modal still opens).
+      let ownerUsers = [];
+      try {
+        const u = await api('/users');
+        ownerUsers = (u && u.users) ? u.users : [];
+      } catch (e) { ownerUsers = []; }
+      const ownerOptions = ownerUsers.map(u =>
+        \`<option value="\${u.id}" \${control.remediation_owner_id === u.id ? 'selected' : ''}>\${u.display_name || u.email}</option>\`
+      ).join('');
       
       document.getElementById('modal-container').innerHTML = \`
         <div class="modal-overlay" onclick="closeModal(event)">
@@ -8104,6 +8480,29 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
                 <label class="form-label">Gaps Identified</label>
                 <textarea class="form-textarea" id="modal-gaps" rows="2" placeholder="Document any gaps...">\${control.gaps_identified || ''}</textarea>
               </div>
+
+              <div style="border-top: 1px solid var(--border); margin: 16px 0 12px; padding-top: 12px;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                  <i class="fas fa-tasks"></i> Remediation Plan &amp; Ownership
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Remediation Plan</label>
+                  <textarea class="form-textarea" id="modal-remediation" rows="2" placeholder="What needs to be done to close this gap...">\${control.remediation_plan || ''}</textarea>
+                </div>
+                <div class="grid-2" style="gap: 16px;">
+                  <div class="form-group">
+                    <label class="form-label">Remediation Owner</label>
+                    <select class="form-select" id="modal-owner">
+                      <option value="">— Unassigned —</option>
+                      \${ownerOptions}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" class="form-input" id="modal-remediation-due" value="\${control.remediation_due_date || ''}">
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -8120,7 +8519,10 @@ function getMainPage(userName: string = 'User', orgName: string = 'Organization'
         implementation_status: document.getElementById('modal-status').value,
         maturity_level: parseInt(document.getElementById('modal-maturity').value),
         evidence_description: document.getElementById('modal-evidence').value,
-        gaps_identified: document.getElementById('modal-gaps').value
+        gaps_identified: document.getElementById('modal-gaps').value,
+        remediation_plan: document.getElementById('modal-remediation').value,
+        remediation_owner_id: document.getElementById('modal-owner').value || null,
+        remediation_due_date: document.getElementById('modal-remediation-due').value || null
       };
       
       try {
@@ -14744,9 +15146,11 @@ app.get('/api/compliance/control/:id', async (c) => {
         cl.*, 
         ca.implementation_status, ca.maturity_level, ca.evidence_description,
         ca.gaps_identified, ca.remediation_plan, ca.remediation_due_date,
-        ca.assessment_date, ca.notes
+        ca.remediation_owner_id, ca.assessment_date, ca.notes,
+        owner.display_name as remediation_owner_name
       FROM control_library cl
       LEFT JOIN control_assessments ca ON cl.id = ca.control_library_id AND ca.organization_id = ?
+      LEFT JOIN users_new owner ON ca.remediation_owner_id = owner.id
       WHERE cl.id = ?
     `).bind(orgId, controlId).first()
     
@@ -14768,7 +15172,7 @@ app.post('/api/compliance/assessment', async (c) => {
   const body = await c.req.json()
   
   try {
-    const { control_library_id, implementation_status, maturity_level, evidence_description, gaps_identified, remediation_plan, remediation_due_date } = body
+    const { control_library_id, implementation_status, maturity_level, evidence_description, gaps_identified, remediation_plan, remediation_due_date, remediation_owner_id } = body
     
     if (!control_library_id) {
       return c.json({ error: 'control_library_id is required' }, 400)
@@ -14790,6 +15194,7 @@ app.post('/api/compliance/assessment', async (c) => {
       if (gaps_identified !== undefined) { updates.push('gaps_identified = ?'); values.push(gaps_identified) }
       if (remediation_plan !== undefined) { updates.push('remediation_plan = ?'); values.push(remediation_plan) }
       if (remediation_due_date !== undefined) { updates.push('remediation_due_date = ?'); values.push(remediation_due_date) }
+      if (remediation_owner_id !== undefined) { updates.push('remediation_owner_id = ?'); values.push(remediation_owner_id || null) }
       
       updates.push('assessment_date = datetime("now")')
       updates.push('updated_at = datetime("now")')
@@ -14806,8 +15211,8 @@ app.post('/api/compliance/assessment', async (c) => {
         INSERT INTO control_assessments (
           id, organization_id, control_library_id, implementation_status, maturity_level,
           evidence_description, gaps_identified, remediation_plan, remediation_due_date,
-          assessment_date, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+          remediation_owner_id, assessment_date, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
       `).bind(
         newId, orgId, control_library_id,
         implementation_status || 'not_started',
@@ -14815,7 +15220,8 @@ app.post('/api/compliance/assessment', async (c) => {
         evidence_description || null,
         gaps_identified || null,
         remediation_plan || null,
-        remediation_due_date || null
+        remediation_due_date || null,
+        remediation_owner_id || null
       ).run()
       
       return c.json({ success: true, action: 'created', id: newId })
