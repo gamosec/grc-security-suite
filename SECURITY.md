@@ -8,53 +8,46 @@
 
 ## 🚨 Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability, please follow these steps:
+We take security seriously. If you discover a security vulnerability, please report it privately through **GitHub Security Advisories / private vulnerability reporting** for this repository.
 
 ### Do NOT:
-- ❌ Open a public GitHub issue
+- ❌ Open a public GitHub issue for an unpatched vulnerability
 - ❌ Post about it on social media
-- ❌ Share details publicly before it's fixed
+- ❌ Share exploit details publicly before remediation
 
-### Do:
-1. **Email us privately** at security@[your-domain].com
-2. **Include details**:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-3. **Allow time** for us to investigate and fix (typically 90 days)
+### Please include:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Suggested fix (if any)
 
-## 🛡️ Security Measures
+We will acknowledge valid reports and work to investigate and remediate them as quickly as practical.
 
-### Data Protection
-- All data encrypted at rest (Cloudflare D1)
-- HTTPS enforced for all communications
-- No sensitive data stored client-side
+## 🛡️ Security Expectations
 
-### Authentication
-- Session-based authentication
-- Secure cookie handling
-- Organization-scoped data isolation
+When deploying GRC Security Suite:
 
-### API Security
-- Rate limiting via Cloudflare
-- Input validation on all endpoints
-- No exposed secrets in code
+### Secrets & configuration
+- Store JWT secrets, API keys, sync keys, and other sensitive configuration in Cloudflare secrets/environment bindings.
+- Never commit database exports, backups, production credentials, or internal restore artifacts.
+- Rotate any credential that may have been exposed.
 
-## 📋 Security Best Practices
+### Authentication & authorization
+- Use strong password hashing suitable for password storage (for example, Argon2id or PBKDF2), not a plain SHA-256 digest.
+- Enforce authentication and organization/tenant authorization on every protected API endpoint.
+- Use secure, appropriately scoped cookies for sessions.
 
-When deploying this suite:
+### API security
+- Restrict CORS to trusted application origins.
+- Validate and authorize resource identifiers server-side.
+- Apply rate limiting and input validation to externally reachable endpoints.
 
-1. **Use environment variables** for sensitive configuration
-2. **Keep dependencies updated** - run `npm audit` regularly
-3. **Enable Cloudflare security features** (WAF, Bot Management)
-4. **Regular backups** of D1 databases
-5. **Monitor access logs** for suspicious activity
+### Deployment
+- Keep dependencies updated and review `npm audit` findings.
+- Enable appropriate Cloudflare security controls.
+- Maintain backups outside the public source repository.
+- Monitor access and security logs for suspicious activity.
 
 ## 🏆 Acknowledgments
 
-We appreciate responsible disclosure and will acknowledge security researchers who help improve our security.
-
----
-
-Thank you for helping keep GRC Security Suite secure! 🙏
+We appreciate responsible disclosure and will acknowledge security researchers who help improve the project.
