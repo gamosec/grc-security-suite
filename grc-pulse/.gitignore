@@ -24,6 +24,13 @@ pids/
 .env.local
 .env.*.local
 
+# Local databases, backups and exports
+**/backup/
+**/backups/
+**/*backup*.sql
+**/*export*.sql
+**/database*.sql
+
 # IDE
 .idea/
 .vscode/
