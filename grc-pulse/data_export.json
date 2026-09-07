@@ -1,5 +1,0 @@
-{
-  "export_date": "2025-01-08",
-  "export_note": "Export key data tables for local development. Run migrations first, then import this data.",
-  "tables": {}
-}
